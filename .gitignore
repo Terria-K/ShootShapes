@@ -1,0 +1,5 @@
+zig-out/
+.zig-cache
+.vscode/
+bin/
+lib/SDL3/
