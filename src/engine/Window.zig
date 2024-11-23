@@ -2,6 +2,7 @@ const Window = @This();
 const TextureFormat = @import("enums/main.zig").TextureFormat;
 const std = @import("std");
 const sdl = @cImport(@cInclude("SDL3/SDL.h"));
+const checks = @import("checks");
 
 const ids: u32 = 0;
 
@@ -11,7 +12,10 @@ swapchain_composition: sdl.enum_SDL_GPUSwapchainComposition = undefined,
 swapchain_format: TextureFormat = undefined,
 
 pub fn init(comptime window: WindowSettings) Window {
-    var flags = sdl.SDL_WINDOW_VULKAN | sdl.SDL_WINDOW_HIDDEN;
+    var flags = sdl.SDL_WINDOW_HIDDEN;
+    if (!checks.is_windows) {
+        flags |= sdl.SDL_WINDOW_VULKAN;
+    }
     if (window.flags.fullscreen) {
         flags |= sdl.SDL_WINDOW_FULLSCREEN;
     }

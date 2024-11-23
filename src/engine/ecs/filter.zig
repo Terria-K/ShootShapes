@@ -37,8 +37,8 @@ pub const Filter = struct {
     }
 
     pub fn deinit(self: @This()) void {
-        self.allocator.destroy(self.included);
-        self.allocator.destroy(self.excluded);
+        self.included.deinit();
+        self.excluded.deinit();
     }
 };
 
@@ -71,6 +71,11 @@ pub const EntityFilter = struct {
         }
 
         _ = try self.entities.add(entity);
+    }
+
+    pub fn deinit(self: EntityFilter) void {
+        self.entities.deinit();
+        self.filter.deinit();
     }
 };
 

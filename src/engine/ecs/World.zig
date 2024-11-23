@@ -132,19 +132,22 @@ pub fn build(self: *World, filter: Filter) !*EntityFilter {
 }
 
 
-pub fn forEach(self: *World, comptime T: type, comptime update: fn(e: EntityID, c: *T) void) void {
-    const t = Type.id(T);
-    const storage = self.component_storage.get(t);
-
-    if (storage) | store| {
-        for (0..2) |i| {
-            const data = store.get(T, @intCast(i));
-            update(@intCast(i), data);
-        }
-    } else {
-        @panic("Component Type does not existed or used yet.");
+pub fn deinit(self: World) void {
+    var citer = self.component_storage.valueIterator();
+    while (citer.next()) |storage| {
+        storage.deinit();
     }
+    var iter = self.filter_storage.valueIterator();
+    while (iter.next()) |filter| {
+        filter.deinit();
+    }
+
+    self.component_storage.deinit();
+    self.filter_storage.deinit();
+    self.typeid_to_hash.deinit();
+    self.entity_id_stack.deinit();
 }
+
 
 pub const ComponentStorage = struct {
     data: *anyopaque,
@@ -199,6 +202,8 @@ pub const ComponentStorage = struct {
 
     pub fn deinit(self: *ComponentStorage) void {
         self.allocator.free(self.data);
+        self.entity_index.deinit();
+        self.entities.deinit();
     }
 
     fn resize(self: *ComponentStorage) !void {

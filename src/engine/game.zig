@@ -2,6 +2,7 @@ const std = @import("std");
 const sdl = @cImport(@cInclude("SDL3/SDL.h"));
 
 const GraphicsDevice = @import("graphics/GraphicsDevice.zig");
+const InputDevice = @import("input/InputDevice.zig");
 const TimeSpan = @import("TimeSpan.zig");
 const Window = @import("Window.zig");
 const WindowSettings = Window.WindowSettings;
@@ -13,7 +14,8 @@ pub fn Events(comptime State: type) type {
         init: ?fn(ctx: *GameContext(State)) void = null,
         load_content: ?fn(ctx: *GameContext(State)) void = null,
         update: ?fn (ctx: *GameContext(State), delta: f64) void = null,
-        render: ?fn (ctx: *GameContext(State)) void = null 
+        render: ?fn (ctx: *GameContext(State)) void = null,
+        deinit: ?fn (ctx: *GameContext(State)) void = null
     };
 }
 
@@ -26,6 +28,7 @@ pub fn GameContext(comptime State: type) type {
         lastTime: u64 = 0,
         accumulator: u64 = 0,
         window: Window,
+        inputs: InputDevice,
         state: *State,
 
         pub fn init(allocator: std.mem.Allocator, comptime settings: WindowSettings) !GameContext(State) {
@@ -39,7 +42,14 @@ pub fn GameContext(comptime State: type) type {
                 sdl.SDL_GPU_PRESENTMODE_VSYNC)) {
                 std.log.err("Cannot claim this window.", .{});
             }
-            return .{ .state = state, .allocator = allocator, .timer = timer, .window = window, .graphics = graphics };
+            return .{ 
+                .state = state, 
+                .allocator = allocator, 
+                .timer = timer, 
+                .window = window, 
+                .graphics = graphics,
+                .inputs = InputDevice.init()
+            };
         }
 
         pub fn run(self: *GameContext(State), comptime loop: Events(State)) void {
@@ -52,6 +62,17 @@ pub fn GameContext(comptime State: type) type {
             }
             self.window.show();
             while (self.tick(loop)) {}
+
+            if (loop.deinit) |deini| {
+                deini(self);
+            }
+            self.deinit();
+            self.graphics.unclaimWindow(&self.window);
+
+            self.window.deinit();
+            self.graphics.deinit();
+
+            sdl.SDL_Quit();
         }
 
         pub fn tick(self: *GameContext(State), comptime loop: Events(State)) bool {
@@ -78,6 +99,7 @@ pub fn GameContext(comptime State: type) type {
 
             while (self.accumulator >= FIXED_STEP_TARGET) {
                 self.accumulator -= FIXED_STEP_TARGET;
+                self.inputs.update();
                 if (loop.update) |upd| {
                     upd(self, @as(f64, @floatFromInt(FIXED_STEP_TARGET)) * 1.0 / std.time.ns_per_s);
                 }
@@ -98,6 +120,10 @@ pub fn GameContext(comptime State: type) type {
             while (sdl.SDL_PollEvent(&event)) {
                 switch (event.type) {
                     sdl.SDL_EVENT_QUIT => self.exiting = true,
+                    sdl.SDL_EVENT_WINDOW_CLOSE_REQUESTED => {
+                        self.graphics.unclaimWindow(&self.window);
+                        self.window.deinit();
+                    },
                     else => {},
                 }
             }

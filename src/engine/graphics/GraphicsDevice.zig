@@ -5,15 +5,22 @@ const CommandBuffer = @import("CommandBuffer.zig");
 const Window = @import("../Window.zig");
 const TextureFormat = @import("../enums/main.zig").TextureFormat;
 const sdl = @cImport(@cInclude("SDL3/SDL.h"));
+const checks = @import("checks");
 
 handle: ?*sdl.SDL_GPUDevice,
 backend: []const u8,
 
 pub fn init() GraphicsDevice {
+    const format = 
+    if (checks.is_windows) 
+        sdl.SDL_GPU_SHADERFORMAT_DXIL | sdl.SDL_GPU_SHADERFORMAT_DXBC
+    else 
+        sdl.SDL_GPU_SHADERFORMAT_SPIRV;
+    
     const handle = sdl.SDL_CreateGPUDevice(
-        sdl.SDL_GPU_SHADERFORMAT_SPIRV | sdl.SDL_GPU_SHADERFORMAT_DXBC, 
+        format, 
         true, 
-        null);
+        if (checks.is_windows) "direct3d12" else "vulkan");
 
     if (handle == null) {
         @panic("Graphics Device failed to create.");
@@ -53,11 +60,18 @@ pub fn claimWindow(self: GraphicsDevice, window: *Window, swapchain_composition:
     return result;
 }
 
+pub fn unclaimWindow(self: GraphicsDevice, window: *Window) void {
+    if (window.claimed) {
+        sdl.SDL_ReleaseWindowFromGPUDevice(self.handle, window.handle);
+        window.claimed = false;
+    }
+}
+
 pub fn acquireCommandBuffer(self: GraphicsDevice) CommandBuffer {
     return CommandBuffer.init(self);
 }
 
-pub fn release(self: GraphicsDevice, resource: anytype) void {
+pub inline fn release(self: GraphicsDevice, resource: anytype) void {
     if (std.meta.hasFn(@TypeOf(resource), "deinit")) {
         resource.deinit(self);
     } else {

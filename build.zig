@@ -19,6 +19,8 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize
     });
 
+    const build_options = b.addOptions();
+
     const exe = b.addExecutable(.{
         .name = "ShootShapes",
         .root_source_file = b.path("src/main.zig"),
@@ -35,14 +37,18 @@ pub fn build(b: *std.Build) void {
     exe.addIncludePath(b.path("lib/SDL3/include"));
     if (target.result.isMinGW()) {
         exe.addObjectFile(b.path("bin/x64/SDL3.dll"));
-        exe.addObjectFile(b.path("bin/x64/spirv-cross-c-shared.dll"));
-        exe.addObjectFile(b.path("bin/x64/SDL3_gpu_shadercross.dll"));
+        build_options.addOption(bool, "is_windows", true);
     } else if (target.result.isDarwin()) {
         exe.addObjectFile(b.path("bin/osx/libSDL2-2.0.0.dylib"));
+        build_options.addOption(bool, "is_windows", false);
     } else {
         exe.linkSystemLibrary("SDL3");
         exe.linkSystemLibrary("FAudio");
+        build_options.addOption(bool, "is_windows", false);
     }
+
+    const mod = build_options.createModule();
+    exe.root_module.addImport("checks", mod);
     exe.root_module.addImport("ziglangSet", ziglangSet.module("ziglangSet"));
     exe.linkLibC();
 

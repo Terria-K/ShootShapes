@@ -63,10 +63,16 @@ pub const AppState = struct {
 
         const allocator = content_allocator.allocator();
 
-        const vertex = try Shader.loadFile(ctx.graphics, "assets/compiled/positioncolor.vert.spv", .{
+        const vertex = try Shader.loadFile(
+            ctx.graphics, 
+            "assets/compiled/positioncolor.vert" ++ Shader.shaderFormatExtension(),
+            .{
             .uniform_buffer_count = 1
         });
-        const fragment = try Shader.loadFile(ctx.graphics, "assets/compiled/solidcolor.frag.spv", .{});
+        const fragment = try Shader.loadFile(
+            ctx.graphics, 
+            "assets/compiled/solidcolor.frag" ++ Shader.shaderFormatExtension(), 
+            .{});
         defer ctx.graphics.release(vertex);
         defer ctx.graphics.release(fragment);
 
@@ -110,15 +116,20 @@ pub const AppState = struct {
 
         const entity2 = world.createEntity();
         try world.setComponent(float2, float2.new(20, 50), entity2);
+        try world.setComponent(components.Movable, .{}, entity2);
 
         ctx.state.world = world;
     }
 
     fn update(ctx: *GameContext, delta: f64) void {
+        const delta_float: f32 = @floatCast(delta);
         var iter = ctx.state.move.entities.iterator();
         while (iter.next()) |entity| {
             const pos = ctx.state.world.getComponent(float2, entity.*);
-            pos.*.x += @floatCast(delta);
+            if (ctx.inputs.keyboard.isHeld(.Right)) {
+                pos.*.x += delta_float * 20.0;
+            }
+
         }
     }
 
@@ -179,6 +190,14 @@ pub const AppState = struct {
 
         command_buffer.submit();
     }
+
+    pub fn deinit(ctx: *GameContext) void {
+        ctx.graphics.release(ctx.state.default);
+        ctx.graphics.release(ctx.state.vert_buffer);
+        ctx.graphics.release(ctx.state.index_buffer);
+        ctx.graphics.release(ctx.state.index_transfer_buffer);
+        ctx.graphics.release(ctx.state.vertex_transfer_buffer);
+    }
 };
 
 
@@ -190,6 +209,7 @@ pub fn main() !void {
     context.run(.{
         .init = AppState.init,
         .update = AppState.update,
-        .render = AppState.render
+        .render = AppState.render,
+        .deinit = AppState.deinit
     });
 }

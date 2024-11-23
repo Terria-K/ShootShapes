@@ -3,15 +3,21 @@ const std = @import("std");
 const sdl = @cImport(@cInclude("SDL3/SDL.h"));
 const GraphicsDevice = @import("GraphicsDevice.zig");
 const ShaderStage = @import("../enums/main.zig").ShaderStage;
+const checks = @import("checks");
 
 handle: ?*sdl.SDL_GPUShader,
 
 pub fn init(device: GraphicsDevice, code: ?*anyopaque, size: usize, stage: ShaderStage, shader_info: ShaderInfo) !Shader {
+    const format = 
+    if (checks.is_windows) 
+        sdl.SDL_GPU_SHADERFORMAT_DXIL
+    else 
+        sdl.SDL_GPU_SHADERFORMAT_SPIRV;
     const create_info: sdl.SDL_GPUShaderCreateInfo = .{ 
         .code = @ptrCast(code),
         .code_size = size,
         .entrypoint = "main",
-        .format =  sdl.SDL_GPU_SHADERFORMAT_SPIRV,
+        .format =  format,
         .stage = @intCast(@intFromEnum(stage)),
         .num_samplers = shader_info.sampler_count,
         .num_storage_buffers = shader_info.storage_buffer_count,
@@ -54,6 +60,14 @@ pub fn loadFile(device: GraphicsDevice, filename: []const u8, shader_info: Shade
 
 pub fn deinit(self: Shader, device: GraphicsDevice) void {
     sdl.SDL_ReleaseGPUShader(device.handle, self.handle);
+}
+
+pub inline fn shaderFormatExtension() []const u8 {
+    if (checks.is_windows) {
+        return ".dxil";
+    } else {
+        return ".spv";
+    }
 }
 
 pub const ShaderInfo = struct {
