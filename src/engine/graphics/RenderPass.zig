@@ -1,4 +1,6 @@
 const RenderPass = @This();
+const structs = @import("../structs/main.zig");
+const TextureSamplerBinding = structs.TextureSamplerBinding;
 const GpuBuffer = @import("GpuBuffer.zig");
 const GraphicsPipeline = @import("GraphicsPipeline.zig");
 const enums = @import("../enums/main.zig");
@@ -12,6 +14,13 @@ pub fn init(handle: ?*sdl.SDL_GPURenderPass) RenderPass {
 
 pub fn bindGraphicsPipeline(self: RenderPass, pipeline: GraphicsPipeline) void {
     sdl.SDL_BindGPUGraphicsPipeline(self.handle, pipeline.handle);
+}
+
+pub fn bindFragmentSampler(self: RenderPass, slot: u32, fragment_sampler: TextureSamplerBinding) void {
+    var texture_sampler_binding = [1]sdl.SDL_GPUTextureSamplerBinding {
+        structs.convertToSDL(sdl.SDL_GPUTextureSamplerBinding, fragment_sampler)
+    };
+    sdl.SDL_BindGPUFragmentSamplers(self.handle, slot, @ptrCast(&texture_sampler_binding), 1);
 }
 
 pub fn bindVertexBuffer(self: RenderPass, buffer: GpuBuffer, slot: u32) void {

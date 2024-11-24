@@ -32,5 +32,7 @@ pub const GraphicsDevice = @import("GraphicsDevice.zig");
 pub const GraphicsPipeline = @import("GraphicsPipeline.zig");
 pub const Image = @import("Image.zig");
 pub const RenderPass = @import("RenderPass.zig");
+pub const Sampler = @import("Sampler.zig");
 pub const Shader = @import("Shader.zig");
+pub const Texture = @import("Texture.zig");
 pub const TransferBuffer = @import("TransferBuffer.zig");

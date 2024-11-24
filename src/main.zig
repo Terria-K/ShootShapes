@@ -15,38 +15,50 @@ const float4x4 = @import("engine/math/main.zig").float4x4;
 const float4 = @import("engine/math/main.zig").float4;
 const float2 = @import("engine/math/main.zig").float2;
 const ecs = @import("engine/ecs/main.zig");
+const InputDevice = @import("engine/input/InputDevice.zig");
 
 const PCV = @import("engine/vertex/main.zig").PositionColorVertex;
 const components = @import("components.zig");
+const systems = @import("systems/main.zig");
+const Batcher = @import("Batcher.zig");
+
+pub const GlobalResource = struct {
+    delta: f64,
+    input: *InputDevice,
+    batch: Batcher,
+    count: u32,
+};
 
 
 pub const AppState = struct {
     default: GraphicsPipeline,
-    vert_buffer: graphics.GpuBuffer,
-    index_buffer: graphics.GpuBuffer,
-    vertex_transfer_buffer: graphics.TransferBuffer,
-    index_transfer_buffer: graphics.TransferBuffer,
-    count: u32,
+
     mat: float4x4,
     world: ecs.World,
-    move: *ecs.filter.EntityFilter,
-    drawable: *ecs.filter.EntityFilter,
+    res: GlobalResource,
+    update_container: systems.SystemUpdateContainer,
+    draw_container: systems.SystemDrawContainer,
+    point_clamp: graphics.Sampler,
 
     fn init(ctx: *GameContext) void {
         load_content(ctx) catch {
             @panic("Error!");
         };
-        ctx.state.count = 0;
+        ctx.state.res.count = 0;
+        ctx.state.point_clamp = graphics.Sampler.init(ctx.graphics, structs.SamplerCreateInfo.pointClamp());
 
         const vertex_transfer_buffer = TransferBuffer.init(PCV, ctx.graphics, 1024, .{ .upload = true });
         const index_transfer_buffer = TransferBuffer.init(u32, ctx.graphics, 1024, .{ .upload = true });
         const vert_buffer = graphics.GpuBuffer.init(PCV, ctx.graphics, 1024, .{ .vertex = true });
         const index_buffer = graphics.GpuBuffer.init(u32, ctx.graphics, 1024, .{ .index = true });
 
-        ctx.state.vertex_transfer_buffer = vertex_transfer_buffer;
-        ctx.state.index_transfer_buffer = index_transfer_buffer;    
-        ctx.state.vert_buffer = vert_buffer;
-        ctx.state.index_buffer = index_buffer;
+        const batch_data: Batcher = .{
+            .vertex_transfer_buffer = vertex_transfer_buffer,
+            .index_transfer_buffer = index_transfer_buffer,
+            .vert_buffer = vert_buffer,
+            .index_buffer = index_buffer
+        };
+        ctx.state.res.batch = batch_data;
 
         const view = float4x4.createTranslation(0, 0, 0);
         const projection = float4x4.createOrthographicOffCenter(0, 1024, 640, 0, -1, 1);
@@ -99,53 +111,16 @@ pub const AppState = struct {
     }
 
     fn local_init(ctx: *GameContext) !void {
-        var world = try ecs.World.init(ctx.allocator);
-
-        var filter = world.createFilter();
-        try filter.with(float2);
-        ctx.state.move = try filter.build(&world);
-
-        var drawable = world.createFilter();
-        try drawable.with(float2);
-        try drawable.with(components.Movable);
-        ctx.state.drawable = try drawable.build(&world);
-
-        const entity1 = world.createEntity();
-        try world.setComponent(float2, float2.new(40, 80), entity1);
-        try world.setComponent(components.Movable, .{}, entity1);
-
-        const entity2 = world.createEntity();
-        try world.setComponent(float2, float2.new(20, 50), entity2);
-        try world.setComponent(components.Movable, .{}, entity2);
-
-        ctx.state.world = world;
+        ctx.state.world = try ecs.World.init(ctx.allocator);
+        var world = &ctx.state.world;
+        ctx.state.update_container = try world.createSystems(systems.SystemUpdateContainer);
+        ctx.state.draw_container = try world.createSystems(systems.SystemDrawContainer);
     }
 
     fn update(ctx: *GameContext, delta: f64) void {
-        const delta_float: f32 = @floatCast(delta);
-        var iter = ctx.state.move.entities.iterator();
-        while (iter.next()) |entity| {
-            const pos = ctx.state.world.getComponent(float2, entity.*);
-            if (ctx.inputs.keyboard.isHeld(.Right)) {
-                pos.*.x += delta_float * 20.0;
-            }
-
-        }
-    }
-
-    fn addVertex(count: u32, vertices: [*]PCV, indices: [*]u32, pos: float2) void {
-        const size = 32;
-        vertices[count * 4] = .{ .position = float4.new(pos.x, pos.y, 0, 1), .color = Color.init(1, 1, 1, 1) };
-        vertices[count * 4 + 1] = .{ .position = float4.new(pos.x + size, pos.y, 0, 1), .color = Color.init(1, 1, 1, 1) };
-        vertices[count * 4 + 2] = .{ .position = float4.new(pos.x, pos.y + size, 0, 1), .color = Color.init(1, 1, 1, 1) };
-        vertices[count * 4 + 3] = .{ .position = float4.new(pos.x + size, pos.y + size, 0, 1), .color = Color.init(1, 1, 1, 1) };
-
-        indices[count * 6] = (count * 4) + 0;
-        indices[count * 6 + 1] = (count * 4) + 1;
-        indices[count * 6 + 2] = (count * 4) + 2;
-        indices[count * 6 + 3] = (count * 4) + 2;
-        indices[count * 6 + 4] = (count * 4) + 1;
-        indices[count * 6 + 5] = (count * 4) + 3;
+        ctx.state.res.delta = delta;
+        ctx.state.res.input = &ctx.inputs;
+        ctx.state.world.runSystems(&ctx.state.update_container, &ctx.state.res);
     }
 
     fn render(ctx: *GameContext) void {
@@ -153,21 +128,11 @@ pub const AppState = struct {
         const texture = command_buffer.acquireSwapchainTexture(ctx.window);
 
         if (texture) |tex| {
-            const vertices = ctx.state.vertex_transfer_buffer.map(PCV, true);
-            const indices= ctx.state.index_transfer_buffer.map(u32, true);
-
-            var iter = ctx.state.drawable.entities.iterator();
-            while (iter.next()) |entity| {
-                const pos = ctx.state.world.getComponent(float2, entity.*);
-                addVertex(ctx.state.count, vertices, indices, pos.*);
-                ctx.state.count += 1;
-            }
-            ctx.state.index_transfer_buffer.unmap();
-            ctx.state.vertex_transfer_buffer.unmap();
+            ctx.state.world.runSystems(&ctx.state.draw_container, &ctx.state.res);
 
             const copy_pass = command_buffer.beginCopyPass();
-            copy_pass.uploadToBuffer(ctx.state.vertex_transfer_buffer, ctx.state.vert_buffer, true);
-            copy_pass.uploadToBuffer(ctx.state.index_transfer_buffer, ctx.state.index_buffer, true);
+            copy_pass.uploadToBuffer(ctx.state.res.batch.vertex_transfer_buffer, ctx.state.res.batch.vert_buffer, true);
+            copy_pass.uploadToBuffer(ctx.state.res.batch.index_transfer_buffer, ctx.state.res.batch.index_buffer, true);
             copy_pass.end();
 
             const render_pass = command_buffer.beginSingleRenderPass(.{ 
@@ -179,24 +144,25 @@ pub const AppState = struct {
                 }
             );
             render_pass.bindGraphicsPipeline(ctx.state.default);
-            render_pass.bindVertexBuffer(ctx.state.vert_buffer, 0);
-            render_pass.bindIndexBuffer(ctx.state.index_buffer, .ThirtyTwo);
+            render_pass.bindVertexBuffer(ctx.state.res.batch.vert_buffer, 0);
+            render_pass.bindIndexBuffer(ctx.state.res.batch.index_buffer, .ThirtyTwo);
             command_buffer.pushVertexUniformData(float4x4, ctx.state.mat, 0);
-            render_pass.drawIndexedPrimitives(ctx.state.count * 6, 1, 0, 0, 0);
+            render_pass.drawIndexedPrimitives(ctx.state.res.count * 6, 1, 0, 0, 0);
             render_pass.end();
 
-            ctx.state.count = 0;
+            ctx.state.res.count = 0;
         }
 
         command_buffer.submit();
     }
 
-    pub fn deinit(ctx: *GameContext) void {
+    fn deinit(ctx: *GameContext) void {
         ctx.graphics.release(ctx.state.default);
-        ctx.graphics.release(ctx.state.vert_buffer);
-        ctx.graphics.release(ctx.state.index_buffer);
-        ctx.graphics.release(ctx.state.index_transfer_buffer);
-        ctx.graphics.release(ctx.state.vertex_transfer_buffer);
+        ctx.graphics.release(ctx.state.res.batch.vert_buffer);
+        ctx.graphics.release(ctx.state.res.batch.index_buffer);
+        ctx.graphics.release(ctx.state.res.batch.index_transfer_buffer);
+        ctx.graphics.release(ctx.state.res.batch.vertex_transfer_buffer);
+        ctx.graphics.release(ctx.state.point_clamp);
     }
 };
 

@@ -3,7 +3,7 @@ const structs = @import("../structs/main.zig");
 const BufferRegion = structs.BufferRegion;
 const TranferBufferLocation = structs.TransferBufferLocation;
 const TransferBuffer = @import("TransferBuffer.zig");
-const Texture = @import("../structs/Texture.zig");
+const Texture = @import("Texture.zig");
 const GpuBuffer = @import("GpuBuffer.zig");
 const sdl = @cImport(@cInclude("SDL3/SDL.h"));
 

@@ -243,6 +243,22 @@ pub const IndexElementSIze = enum(u32) {
     ThirtyTwo = 1
 };
 
+pub const Filter = enum(u32) {
+    Nearest = 0,
+    Linear = 1
+};
+
+pub const MipmapMode = enum(u32) {
+    Nearest = 0,
+    Linear = 1
+};
+
+pub const SamplerAddressMode = enum(u32) {
+    Repeat = 0,
+    MirroredRepeat = 1,
+    ClampToEdge = 2
+};
+
 pub const KeyCode = enum(i32) {
     Unknown = 0,
     A = 4,

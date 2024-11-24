@@ -37,8 +37,10 @@ pub const DepthStencilState = @import("DepthStencilState.zig");
 pub const GraphicsPipelineTargetInfo = @import("GraphicsPipelineTargetInfo.zig");
 pub const MultisampleState = @import("MultisampleState.zig");
 pub const RasterizerState = @import("RasterizerState.zig");
+pub const SamplerCreateInfo = @import("SamplerCreateInfo.zig");
 pub const StencilOpState = @import("StencilOpState.zig");
 
+pub const TextureSamplerBinding = @import("TextureSamplerBinding.zig");
 pub const TransferBufferLocation = @import("TransferBufferLocation.zig");
 
 pub const VertexAttribute = @import("VertexAttribute.zig");

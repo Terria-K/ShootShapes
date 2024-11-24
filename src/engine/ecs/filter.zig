@@ -55,7 +55,7 @@ pub const EntityFilter = struct {
         };
     }
 
-    pub fn check(self: *EntityFilter, world: *World, entity: EntityID) !void {
+    pub fn check(self: *EntityFilter, world: *World, entity: EntityID) void {
         for (self.filter.included.items) |included| {
             if (!world.hasComponentTypeID(included, entity)) {
                 _ = self.entities.remove(entity);
@@ -70,7 +70,13 @@ pub const EntityFilter = struct {
             }
         }
 
-        _ = try self.entities.add(entity);
+        _ = self.entities.add(entity) catch {
+            @panic("Out of memory!");
+        };
+    }
+
+    pub fn remove(self: *EntityFilter, entity: EntityID) void {
+        _ = self.entities.remove(entity);
     }
 
     pub fn deinit(self: EntityFilter) void {
@@ -83,16 +89,19 @@ pub const Signature = struct {
     hash: u64,
 
     pub fn init(hash: *std.hash.XxHash64, filter: Filter) Signature {
+        var has_type = false;
         for (filter.included.items) |includ| {
             std.hash.autoHash(hash, @intFromPtr(includ));
+            has_type = true;
         }
 
         for (filter.excluded.items) |exclud| {
             std.hash.autoHash(hash, @intFromPtr(exclud));
+            has_type = true;
         }
 
         return .{
-            .hash = hash.final()
+            .hash = if (has_type) hash.final() else 0
         };
     }
 };

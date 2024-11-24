@@ -43,9 +43,33 @@ pub fn update(self: *Keyboard) void {
     }
 }
 
+inline fn boolCastToI32(b: bool) i32 {
+    return @as(i32, @intFromBool(b));
+}
+
+pub fn axis(self: Keyboard, left: Keycode, right: Keycode) i32 {
+    const left_button = self.buttons[@intCast(@intFromEnum(left))];
+    const right_button = self.buttons[@intCast(@intFromEnum(right))];
+
+    return (-@as(i32, boolCastToI32(left_button.isHeld()))) + @as(i32, boolCastToI32(right_button.isHeld()));
+}
+
+pub fn axisF(self: Keyboard, left: Keycode, right: Keycode) f32 {
+    const left_button = self.buttons[@intCast(@intFromEnum(left))];
+    const right_button = self.buttons[@intCast(@intFromEnum(right))];
+
+    return (-@as(f32, @floatFromInt(boolCastToI32(left_button.isHeld())))) + @as(f32, @floatFromInt(boolCastToI32(right_button.isHeld())));
+}
+
+pub fn pressedAxisF(self: Keyboard, left: Keycode, right: Keycode) f32 {
+    const left_button = self.buttons[@intCast(@intFromEnum(left))];
+    const right_button = self.buttons[@intCast(@intFromEnum(right))];
+
+    return (-@as(f32, @floatFromInt(boolCastToI32(left_button.pressed())))) + @as(f32, @floatFromInt(boolCastToI32(right_button.pressed())));
+}
+
 pub fn isPressed(self: Keyboard, code: Keycode) bool {
     const button = self.buttons[@intCast(@intFromEnum(code))];
-    std.log.debug("{any}", .{button.status});
     return button.pressed();
 }
 
@@ -85,9 +109,6 @@ pub const Button = struct {
     }
 
     pub fn update(self: *Button, key: Trigger) void {
-        if (self.*.keycode != .Right) {
-            return;
-        }
         const is_key_pressed = key[@intCast(@intFromEnum(self.*.keycode))];
 
         if (is_key_pressed) {

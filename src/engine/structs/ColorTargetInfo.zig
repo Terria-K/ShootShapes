@@ -1,6 +1,6 @@
 const ColorTargetInfo = @This();
 const sdl = @cImport(@cInclude("SDL3/SDL.h"));
-const Texture = @import("Texture.zig");
+const Texture = @import("../graphics/main.zig").Texture;
 const Color = @import("../graphics/main.zig").Color;
 const std = @import("std");
 const enums = @import("../enums/main.zig");

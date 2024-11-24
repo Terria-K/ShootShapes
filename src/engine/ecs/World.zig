@@ -4,12 +4,16 @@ const Type = @import("typeid.zig").Type;
 const TypeID = @import("typeid.zig").TypeID;
 const filt = @import("filter.zig");
 const EntityID = @import("main.zig").EntityID;
+const TypeIDSet = @import("ziglangSet").Set(TypeID);
 const Filter = filt.Filter;
 const EntityFilter = filt.EntityFilter;
 const Signature = filt.Signature;
+
+
 component_storage: std.AutoHashMap(TypeID, ComponentStorage),
 filter_storage: std.AutoHashMap(u64, *EntityFilter),
 typeid_to_hash: std.AutoHashMap(TypeID, std.ArrayList(u64)),
+entityid_to_typeid: std.ArrayList(TypeIDSet),
 hash: std.hash.XxHash64,
 entity_id_stack: std.ArrayList(EntityID),
 current_id: EntityID,
@@ -23,6 +27,7 @@ pub fn init(allocator: std.mem.Allocator) !World {
         .filter_storage = std.AutoHashMap(u64, *EntityFilter).init(allocator),
         .typeid_to_hash = std.AutoHashMap(TypeID, std.ArrayList(u64)).init(allocator),
         .entity_id_stack = std.ArrayList(EntityID).init(allocator),
+        .entityid_to_typeid = std.ArrayList(TypeIDSet).init(allocator),
         .hash = std.hash.XxHash64.init(blk: { 
             var seed: u64 = undefined;
             try std.posix.getrandom(std.mem.asBytes(&seed)) ;
@@ -37,9 +42,28 @@ pub fn createEntity(self: *World) EntityID {
         return id;
     }
     const id = self.current_id;
+    self.entityid_to_typeid.append(TypeIDSet.init(self.allocator)) catch {
+        @panic("Out of Memory!");  
+    };
 
     self.current_id += 1;
     return id;
+}
+
+pub fn createSystems(self: *World, comptime T: type) !T {
+    var c: T = undefined;
+    const fields = std.meta.fields(T);
+    inline for (fields) |field| {
+        @field(c, field.name) = try self.createSystem(field.type);
+    }
+    return c;
+}
+
+pub fn runSystems(self: *World, system_container: anytype, res: anytype) void {
+    const fields = std.meta.fields(@TypeOf(system_container.*));
+    inline for (fields) |field| {
+        @field(system_container, field.name).run(self, res);
+    }
 }
 
 fn getStorage(self: *World, comptime T: type) !*ComponentStorage {
@@ -63,15 +87,25 @@ pub fn getTypeAndInit(self: *World, comptime T: type) !TypeID {
     return t;
 }
 
-pub fn setComponent(self: *World, comptime T: type, data: anytype, entity: EntityID) !void {
+inline fn setComponentInternal(self: *World, comptime T: type, data: anytype, entity: EntityID) !TypeID {
     const t = Type.id(T);
     var storage = try getStorage(self, T);
     try storage.set(T, data, entity);
 
+    _ = try self.entityid_to_typeid.items[entity].add(t);
+    return t;
+}
+
+pub fn setComponent(self: *World, comptime T: type, data: anytype, entity: EntityID) void {
+    // can we just have a try block?
+    const t = setComponentInternal(self, T, data, entity) catch |err| switch (err) {
+        std.mem.Allocator.Error.OutOfMemory => @panic("Out of memory!")
+    };
+
     if (self.typeid_to_hash.get(t)) |h| {
         for (h.items) |filter_hashes| {
             if (self.filter_storage.get(filter_hashes)) |filter| {
-                try EntityFilter.check(filter, self, entity);
+                filter.check(self, entity);
             }
         }
     }
@@ -87,6 +121,56 @@ pub fn hasComponentTypeID(self: *World, t: TypeID, entity: EntityID) bool {
         return ComponentStorage.has(@constCast(&store), entity);
     }
     return false;
+}
+
+pub fn removeComponent(self: *World, comptime T: type, entity: EntityID) void {
+    const t = Type.id(T);
+    const storage = self.component_storage.get(t);
+    if (storage) |store| {
+        if (store.remove(entity)) {
+            _ = self.entityid_to_typeid.items[entity].remove(t);
+            if (self.typeid_to_hash.get(t)) |h| {
+                for (h.items) |filter_hashes| {
+                    if (self.filter_storage.get(filter_hashes)) |filter| {
+                        filter.check(self, entity);
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub fn destroy(self: *World, entity: EntityID) void {
+    var component_set = self.entityid_to_typeid.items[entity];
+    var iter = component_set.iterator();
+    while (iter.next()) |component_id| {
+        // we used ? because we are sure that component_storage is not null at this point
+        var store = self.component_storage.get(component_id.*).?;
+        _ = store.remove(entity);
+
+        if (self.typeid_to_hash.get(component_id.*)) |h| {
+            for (h.items) |filter_hashes| {
+                if (self.filter_storage.get(filter_hashes)) |filter| {
+                    filter.remove(entity);
+                }
+            }
+        }
+    }
+
+    component_set.clearRetainingCapacity();
+    self.entity_id_stack.append(entity) catch {
+        @panic("Out of memory!");
+    };
+}
+
+pub fn getReadOnlyComponent(self: *World, comptime T: type, entity: EntityID) *const T {
+    const t = Type.id(T);
+    const storage = self.component_storage.get(t);
+    if (storage) |store| {
+        return store.get(T, entity);
+    }
+
+    @panic("Component Type does not existed or used yet.");
 }
 
 pub fn getComponent(self: *World, comptime T: type, entity: EntityID) *T {
@@ -132,6 +216,37 @@ pub fn build(self: *World, filter: Filter) !*EntityFilter {
 }
 
 
+const type_to_compare = @import("../ecs/filter.zig").EntityFilter;
+fn createSystem(self: *World, comptime T: type) !T {
+    const fields = std.meta.fields(T);
+    var system: T = undefined;
+    inline for (fields) |field| {
+        if (field.type != *type_to_compare) {
+            continue;
+        }
+
+        var filter = createFilter(self);
+        if (@hasDecl(T, field.name ++ "With")) {
+            const types =  @field(T, field.name ++ "With");
+            inline for (types) |t| {
+                try filter.with(t);
+            }
+
+        } 
+
+        if (@hasDecl(T, field.name ++ "Without"))  {
+            const types =  @field(T, field.name ++ "Without");
+            inline for (types) |t| {
+                try filter.without(t);
+            }
+        }
+
+        @field(system, field.name) = try filter.build(self);
+    }
+    return system;
+}
+
+
 pub fn deinit(self: World) void {
     var citer = self.component_storage.valueIterator();
     while (citer.next()) |storage| {
@@ -160,11 +275,10 @@ pub const ComponentStorage = struct {
 
     pub fn init(comptime T: type, allocator: std.mem.Allocator) !ComponentStorage {
         const data_size = @sizeOf(T);
-        const initial_size = data_size * 16;
         const data = try allocator.alloc(T, 16);
         return .{
             .data = @ptrCast(data),
-            .capacity = initial_size,
+            .capacity = 16,
             .elem_size = data_size,
             .count = 0,
             .allocator = allocator,
@@ -183,11 +297,11 @@ pub const ComponentStorage = struct {
         if (entity_idx.found_existing) {
             @as([*]T, @alignCast(@ptrCast(self.data)))[entity_idx.value_ptr.*] = data;
         } else {
-            entity_idx.value_ptr.* = self.entity_index.count();
+            entity_idx.value_ptr.* = @intCast(self.count);
 
             try self.entities.append(entity_id);
             if (self.count >= self.capacity) {
-                try self.resize();
+                try self.resize(T);
             }
 
             @as([*]T, @alignCast(@ptrCast(self.data)))[self.count] = data;
@@ -197,7 +311,34 @@ pub const ComponentStorage = struct {
     }
 
     pub fn get(self: ComponentStorage, comptime T: type, i: u32) *T {
-        return &@as([*]T, @alignCast(@ptrCast(self.data)))[i];
+        const index = self.entity_index.get(i);
+        return &@as([*]T, @alignCast(@ptrCast(self.data)))[index.?];
+    }
+
+    pub fn remove(self: *ComponentStorage, i: u32) bool {
+        const index = self.entity_index.get(i);
+
+        if (index) |ind| {
+            const last_element_index = self.count - 1;
+            const last_entity = self.entities.items[last_element_index];
+
+            if (ind != last_element_index) {
+                const dest_dist = (ind * self.elem_size);
+                const src_dist = (last_element_index * self.elem_size);
+                @memcpy(
+                    @as([*]u8, @ptrCast(self.data))[dest_dist..dest_dist + self.elem_size], 
+                    @as([*]u8, @ptrCast(self.data))[src_dist..src_dist + self.elem_size]
+                );
+            }
+            self.count -= 1;
+            _ = self.entities.orderedRemove(ind);
+            _ = self.entity_index.remove(i);
+            if (last_element_index != ind) {
+                self.entity_index.putAssumeCapacity(last_entity, ind);
+            }
+            return true;
+        }
+        return false;
     }
 
     pub fn deinit(self: *ComponentStorage) void {
@@ -206,9 +347,9 @@ pub const ComponentStorage = struct {
         self.entities.deinit();
     }
 
-    fn resize(self: *ComponentStorage) !void {
-        const bytes: []u8 = @as([*]u8, @ptrCast(self.data))[0..self.elem_size * self.capacity];
+    fn resize(self: *ComponentStorage, comptime T: type) !void {
+        const bytes: []T = @as([*]T, @alignCast(@ptrCast(self.data)))[0..self.capacity];
         self.capacity *= 2;
-        self.data = @ptrCast(try self.allocator.realloc(bytes, self.elem_size * self.capacity));
+        self.data = @ptrCast(try self.allocator.realloc(bytes, self.capacity));
     }
 };
