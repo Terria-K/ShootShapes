@@ -1,7 +1,4 @@
-struct VertexInput {
-    float4 Position : POSITION0;
-    float4 Color : COLOR1;
-}
+import common;
 
 struct VertexOutput {
     float4 Color : COLOR0;
@@ -9,14 +6,9 @@ struct VertexOutput {
 }
 
 [vk_binding(0, 1)]
-cbuffer UniformBlock : register(b0, space1) {
-    float4x4 MatrixUniform : packoffset(c0);  
-};
+ConstantBuffer<float4x4> MatrixUniform : register(s0, space1);
 
 [shader("vertex")]
-VertexOutput main(VertexInput input) {
-    VertexOutput out;
-    out.Color = input.Color;
-    out.Position = mul(MatrixUniform, input.Position);
-    return out;
+VertexOutput main(PositionColorVertex input) {
+    return { input.Color, mul(MatrixUniform, input.Position) };
 }
