@@ -134,7 +134,8 @@ pub fn removeComponent(self: *World, comptime T: type, entity: EntityID) void {
     const t = Type.id(T);
     const storage = self.component_storage.get(t);
     if (storage) |store| {
-        if (store.remove(entity)) {
+        var stor = @constCast(&store);
+        if (stor.remove(entity)) {
             _ = self.entityid_to_typeid.items[entity].remove(t);
             if (self.typeid_to_hash.get(t)) |h| {
                 for (h.items) |filter_hashes| {
@@ -275,6 +276,11 @@ pub fn deinit(self: *World) void {
     var tider = self.typeid_to_hash.valueIterator();
     while (tider.next()) |arr| {
         arr.deinit();
+    }
+
+    for (0..self.entityid_to_typeid.items.len) |i| {
+        var item: TypeIDSet = self.entityid_to_typeid.items[i];
+        item.deinit();
     }
 
     self.component_storage.deinit();
