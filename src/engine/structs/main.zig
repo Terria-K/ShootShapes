@@ -40,7 +40,10 @@ pub const RasterizerState = @import("RasterizerState.zig");
 pub const SamplerCreateInfo = @import("SamplerCreateInfo.zig");
 pub const StencilOpState = @import("StencilOpState.zig");
 
+
+pub const TextureRegion = @import("TextureRegion.zig");
 pub const TextureSamplerBinding = @import("TextureSamplerBinding.zig");
+pub const TextureTransferInfo = @import("TextureTransferInfo.zig");
 pub const TransferBufferLocation = @import("TransferBufferLocation.zig");
 
 pub const VertexAttribute = @import("VertexAttribute.zig");

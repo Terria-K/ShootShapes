@@ -2,7 +2,7 @@ const std = @import("std");
 const app = @import("../main.zig");
 const World = @import("../engine/ecs/World.zig");
 const EntityFilter = @import("../engine/ecs/filter.zig").EntityFilter;
-const PCV = @import("../engine/vertex/main.zig").PositionColorVertex;
+const PCV = @import("../engine/vertex/main.zig").PositionTextureColorVertex;
 const components = @import("../components.zig");
 const Batcher = @import("../Batcher.zig");
 

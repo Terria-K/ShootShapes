@@ -25,7 +25,7 @@ pub fn acquireSwapchainTexture(self: CommandBuffer, window: Window) ?Texture {
         std.log.err("Cannot acquire this texture.", .{});
         return null;
     }
-    return Texture { .handle = texture, .width = width, .height = height };
+    return Texture { .handle = texture, .width = width, .height = height, .depth = 1 };
 }
 
 pub fn beginSingleRenderPass(self: CommandBuffer, target: ColorTargetInfo) RenderPass {

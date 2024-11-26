@@ -79,7 +79,7 @@ pub const EntityFilter = struct {
         _ = self.entities.remove(entity);
     }
 
-    pub fn deinit(self: EntityFilter) void {
+    pub fn deinit(self: *EntityFilter) void {
         self.entities.deinit();
         self.filter.deinit();
     }

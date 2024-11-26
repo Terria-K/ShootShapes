@@ -66,6 +66,13 @@ pub fn runSystems(self: *World, system_container: anytype, res: anytype) void {
     }
 }
 
+pub fn deinitSystems(self: *World, system_container: anytype) void {
+    const fields = std.meta.fields(@TypeOf(system_container));
+    inline for (fields) |field| {
+        self.deinitSystem(@field(system_container, field.name));
+    }
+}
+
 fn getStorage(self: *World, comptime T: type) !*ComponentStorage {
     const t = Type.id(T);
     const storage = try self.component_storage.getOrPut(t);
@@ -217,6 +224,18 @@ pub fn build(self: *World, filter: Filter) !*EntityFilter {
 
 
 const type_to_compare = @import("../ecs/filter.zig").EntityFilter;
+fn deinitSystem(self: *World, system: anytype) void {
+    const fields = std.meta.fields(@TypeOf(system));
+    inline for (fields) |field| {
+        if (field.type != *type_to_compare) {
+            continue;
+        }
+
+        @field(system, field.name).deinit();
+        self.allocator.destroy(@field(system, field.name));
+    }
+}
+
 fn createSystem(self: *World, comptime T: type) !T {
     const fields = std.meta.fields(T);
     var system: T = undefined;
@@ -247,19 +266,21 @@ fn createSystem(self: *World, comptime T: type) !T {
 }
 
 
-pub fn deinit(self: World) void {
+pub fn deinit(self: *World) void {
     var citer = self.component_storage.valueIterator();
     while (citer.next()) |storage| {
         storage.deinit();
     }
-    var iter = self.filter_storage.valueIterator();
-    while (iter.next()) |filter| {
-        filter.deinit();
+
+    var tider = self.typeid_to_hash.valueIterator();
+    while (tider.next()) |arr| {
+        arr.deinit();
     }
 
     self.component_storage.deinit();
     self.filter_storage.deinit();
     self.typeid_to_hash.deinit();
+    self.entityid_to_typeid.deinit();
     self.entity_id_stack.deinit();
 }
 
@@ -275,7 +296,7 @@ pub const ComponentStorage = struct {
 
     pub fn init(comptime T: type, allocator: std.mem.Allocator) !ComponentStorage {
         const data_size = @sizeOf(T);
-        const data = try allocator.alloc(T, 16);
+        const data = try allocator.alloc(u8, data_size * 16);
         return .{
             .data = @ptrCast(data),
             .capacity = 16,
@@ -342,7 +363,7 @@ pub const ComponentStorage = struct {
     }
 
     pub fn deinit(self: *ComponentStorage) void {
-        self.allocator.free(self.data);
+        self.allocator.free(@as([*]u8, @alignCast(@ptrCast(self.data)))[0..self.elem_size * self.capacity]);
         self.entity_index.deinit();
         self.entities.deinit();
     }

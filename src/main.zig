@@ -10,14 +10,13 @@ const TransferBuffer = graphics.TransferBuffer;
 const GameContext = @import("engine/game.zig").GameContext(AppState);
 const WindowSettings = @import("engine/Window.zig").WindowSettings;
 const ColorTargetInfo = @import("engine/structs/ColorTargetInfo.zig");
-const enums = @import("engine/enums/main.zig");
 const float4x4 = @import("engine/math/main.zig").float4x4;
 const float4 = @import("engine/math/main.zig").float4;
 const float2 = @import("engine/math/main.zig").float2;
 const ecs = @import("engine/ecs/main.zig");
 const InputDevice = @import("engine/input/InputDevice.zig");
 
-const PCV = @import("engine/vertex/main.zig").PositionColorVertex;
+const PCV = @import("engine/vertex/main.zig").PositionTextureColorVertex;
 const components = @import("components.zig");
 const systems = @import("systems/main.zig");
 const Batcher = @import("Batcher.zig");
@@ -39,6 +38,7 @@ pub const AppState = struct {
     update_container: systems.SystemUpdateContainer,
     draw_container: systems.SystemDrawContainer,
     point_clamp: graphics.Sampler,
+    texture: graphics.Texture,
 
     fn init(ctx: *GameContext) void {
         load_content(ctx) catch {
@@ -75,16 +75,23 @@ pub const AppState = struct {
 
         const allocator = content_allocator.allocator();
 
+
+        var uploader = graphics.TextureUploader.init(allocator, ctx.graphics, .{});
+        defer ctx.graphics.release(uploader);
+        ctx.state.texture = try uploader.createTextureFromImage(try graphics.Image.loadImage(allocator, "assets/textures/chapter1.png"));
+        uploader.upload();
+
+
         const vertex = try Shader.loadFile(
             ctx.graphics, 
-            "assets/compiled/positioncolor.vert" ++ Shader.shaderFormatExtension(),
+            "assets/compiled/positiontexturecolor.vert" ++ Shader.shaderFormatExtension(),
             .{
             .uniform_buffer_count = 1
         });
         const fragment = try Shader.loadFile(
             ctx.graphics, 
-            "assets/compiled/solidcolor.frag" ++ Shader.shaderFormatExtension(), 
-            .{});
+            "assets/compiled/texture.frag" ++ Shader.shaderFormatExtension(), 
+            .{ .sampler_count = 1 });
         defer ctx.graphics.release(vertex);
         defer ctx.graphics.release(fragment);
 
@@ -105,7 +112,7 @@ pub const AppState = struct {
             .rasterizer_state = structs.RasterizerState.ccwCullNone(),
             .vertex_shader = vertex,
             .fragment_shader = fragment,
-            .primitive_type = enums.PrimitiveType.TriangleList,
+            .primitive_type = .TriangleList,
             .vertex_input_state = try input_builder.build()
         });
     }
@@ -137,15 +144,16 @@ pub const AppState = struct {
 
             const render_pass = command_buffer.beginSingleRenderPass(.{ 
                     .texture = tex, 
-                    .clear_color = Color.init(0.3, 0.4, 0.5, 1.0), 
-                    .load_op = enums.LoadOp.Clear, 
-                    .store_op = enums.StoreOp.Store,
+                    .clear_color = Color.cornflowerBlue,
+                    .load_op = .Clear, 
+                    .store_op = .Store,
                     .cycle = true
                 }
             );
             render_pass.bindGraphicsPipeline(ctx.state.default);
             render_pass.bindVertexBuffer(ctx.state.res.batch.vert_buffer, 0);
             render_pass.bindIndexBuffer(ctx.state.res.batch.index_buffer, .ThirtyTwo);
+            render_pass.bindFragmentSampler(0, .{ .sampler = ctx.state.point_clamp, .texture = ctx.state.texture });
             command_buffer.pushVertexUniformData(float4x4, ctx.state.mat, 0);
             render_pass.drawIndexedPrimitives(ctx.state.res.count * 6, 1, 0, 0, 0);
             render_pass.end();
@@ -157,6 +165,10 @@ pub const AppState = struct {
     }
 
     fn deinit(ctx: *GameContext) void {
+        ctx.state.world.deinitSystems(ctx.state.update_container);
+        ctx.state.world.deinitSystems(ctx.state.draw_container);
+        ctx.state.world.deinit();
+        ctx.graphics.release(ctx.state.texture);
         ctx.graphics.release(ctx.state.default);
         ctx.graphics.release(ctx.state.res.batch.vert_buffer);
         ctx.graphics.release(ctx.state.res.batch.index_buffer);
@@ -178,4 +190,5 @@ pub fn main() !void {
         .render = AppState.render,
         .deinit = AppState.deinit
     });
+    std.log.info("{any}", .{gpa.deinit()});
 }

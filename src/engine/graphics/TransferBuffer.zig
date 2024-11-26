@@ -17,6 +17,29 @@ pub fn init(comptime TypeSize: type, device: GraphicsDevice, size: u32, usage: T
     };
 }
 
+pub fn initUnknown(device: GraphicsDevice, size: u32, usage: TransferBufferUsage) TransferBuffer {
+    var create_info: sdl.SDL_GPUTransferBufferCreateInfo = undefined;
+    create_info.size = size;
+    create_info.usage = @bitCast(usage);
+    const handle = sdl.SDL_CreateGPUTransferBuffer(device.handle, &create_info);
+    return .{
+        .handle = handle,
+        .device = device
+    };
+}
+
+pub fn mapUnknown(self: *TransferBuffer, cycle: bool) ?*anyopaque {
+    if (self.is_mapped) {
+        @panic("Transfer Buffer is already mapped yet, unmapped it first to map it.");
+    }
+
+    self.is_mapped = true;
+
+    const map_buffer = sdl.SDL_MapGPUTransferBuffer(self.device.handle, self.handle, cycle);
+    return map_buffer;
+    
+}
+
 pub fn map(self: *TransferBuffer, comptime T: type, cycle: bool) [*]T {
     if (self.is_mapped) {
         @panic("Transfer Buffer is already mapped yet, unmapped it first to map it.");
