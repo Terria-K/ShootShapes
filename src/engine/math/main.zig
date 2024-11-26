@@ -13,3 +13,7 @@ pub const double2 = generics.on(f64).Vec2;
 pub const double3 = generics.on(f64).Vec3;
 pub const double4 = generics.on(f64).Vec4;
 pub const double4x4 = generics.on(f64).Mat4;
+
+pub const rect = generics.on(i32).Rectangle;
+pub const frect = generics.on(f32).Rectangle;
+pub const drect = generics.on(f64).Rectangle;

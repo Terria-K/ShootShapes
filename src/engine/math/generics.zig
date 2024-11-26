@@ -158,6 +158,19 @@ pub fn on(comptime Type: type) type {
             }
         };
 
+        pub const Rectangle = extern struct {
+            x: Type, y: Type, width: Type, height: Type,
+
+            pub inline fn init(x: Type, y: Type, width: Type, height: Type) Rectangle {
+                return .{
+                    .x = x,
+                    .y = y,
+                    .width = width,
+                    .height = height
+                };
+            }
+        };
+
         pub const Mat4 = extern struct {
             m11: Type, m12: Type, m13: Type, m14: Type,
             m21: Type, m22: Type, m23: Type, m24: Type,
