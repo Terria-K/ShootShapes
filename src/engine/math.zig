@@ -1,0 +1,1 @@
+pub usingnamespace @import("math/main.zig");

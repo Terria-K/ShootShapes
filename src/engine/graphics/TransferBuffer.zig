@@ -5,6 +5,7 @@ const sdl = @cImport(@cInclude("SDL3/SDL.h"));
 handle: ?*sdl.SDL_GPUTransferBuffer,
 device: GraphicsDevice,
 is_mapped: bool = false,
+size: u32,
 
 pub fn init(comptime TypeSize: type, device: GraphicsDevice, size: u32, usage: TransferBufferUsage) TransferBuffer {
     var create_info: sdl.SDL_GPUTransferBufferCreateInfo = undefined;
@@ -13,7 +14,8 @@ pub fn init(comptime TypeSize: type, device: GraphicsDevice, size: u32, usage: T
     const handle = sdl.SDL_CreateGPUTransferBuffer(device.handle, &create_info);
     return .{
         .handle = handle,
-        .device = device
+        .device = device,
+        .size = size,
     };
 }
 
@@ -24,7 +26,8 @@ pub fn initUnknown(device: GraphicsDevice, size: u32, usage: TransferBufferUsage
     const handle = sdl.SDL_CreateGPUTransferBuffer(device.handle, &create_info);
     return .{
         .handle = handle,
-        .device = device
+        .device = device,
+        .size = size,
     };
 }
 

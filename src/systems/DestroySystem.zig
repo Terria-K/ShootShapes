@@ -16,7 +16,7 @@ pub const filterWith = .{
 pub fn run(self: @This(), world: *World, res: *app.GlobalResource) void {
     var iter = self.filter.entities.iterator();
     while (iter.next()) |entity| {
-        if (res.input.keyboard.isPressed(.Tab)) {
+        if (res.input.mouse.leftButton().pressed()) {
             world.destroy(entity.*);
         } 
         return;

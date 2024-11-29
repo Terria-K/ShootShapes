@@ -23,7 +23,7 @@ pub fn build(b: *std.Build) void {
     const atlas_mod = b.createModule(.{
         .target = target,
         .optimize = optimize,
-        .root_source_file = b.path("assets/atlas.zig")
+        .root_source_file = b.path("assets/result.zig")
     });
 
     const build_options = b.addOptions();

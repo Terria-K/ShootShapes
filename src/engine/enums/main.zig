@@ -259,6 +259,14 @@ pub const SamplerAddressMode = enum(u32) {
     ClampToEdge = 2
 };
 
+pub const MouseButtonCode = enum(u32) {
+    Left,
+    Right,
+    Middle,
+    X1,
+    X2
+};
+
 pub const KeyCode = enum(i32) {
     Unknown = 0,
     A = 4,

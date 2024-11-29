@@ -10,7 +10,6 @@ transfer_buffer: TransferBuffer,
 allocator: std.mem.Allocator,
 texture_uploads: std.ArrayList(TextureUploads),
 buffer: ?*anyopaque,
-size: u32,
 offset: usize,
 device: GraphicsDevice,
 
@@ -25,7 +24,6 @@ pub fn init(allocator: std.mem.Allocator, device: GraphicsDevice, info: TextureU
         .allocator = allocator,
         .texture_uploads = std.ArrayList(TextureUploads).init(allocator),
         .offset = 0,
-        .size = info.max_size,
         .device = device 
     };
 }
@@ -64,17 +62,29 @@ fn uploadInternal(self: *TextureUploader) void {
 fn copyTextureToTransferBuffer(self: *TextureUploader, ptr: [*]u8, length: usize, alignment: u32) usize {
     self.offset = alignment * ((self.offset + alignment - 1) / alignment);
 
-    if (self.offset + length >= self.size) {
+    if (length > self.transfer_buffer.size) {
+        self.resize(@intCast(length));
+    }
+
+    if (self.offset + length >= self.transfer_buffer.size) {
         self.transfer_buffer.unmap();
         self.uploadInternal();
         self.buffer = self.transfer_buffer.mapUnknown(true);
     }
 
     const offset = self.offset;
-    @memcpy(@as([*]u8, @ptrCast(@alignCast(self.buffer)))[self.offset..(self.offset + length)], ptr[0..]);
+    @memcpy(@as([*]u8, @ptrCast(@alignCast(self.buffer)))[self.offset..(self.offset + length)], ptr[0..length]);
     self.offset += length;
 
     return offset;
+}
+
+fn resize(self: *TextureUploader, size: u32) void {
+    self.transfer_buffer.unmap();
+    self.uploadInternal();
+    self.transfer_buffer.deinit(self.device);
+    self.transfer_buffer = TransferBuffer.initUnknown(self.device, size, .{ .upload = true });
+    self.buffer = self.transfer_buffer.mapUnknown(true);
 }
 
 pub fn deinit(self: TextureUploader, device: GraphicsDevice) void {

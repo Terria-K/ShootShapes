@@ -6,6 +6,8 @@ const EntityFilter = @import("../engine/ecs/filter.zig").EntityFilter;
 const components = @import("../components.zig");
 const float2 = @import("../engine/math/main.zig").float2;
 const float = @import("../engine/math/generics.zig").on(f32);
+const Atlas = @import("../Atlas.zig");
+const atlas = @import("atlas");
 
 filter: *EntityFilter = undefined,
 
@@ -45,14 +47,19 @@ pub fn run(self: @This(), world: *World, res: *app.GlobalResource) void {
     }
 
     if (res.input.keyboard.isPressed(.Space)) {
-        spawn(world);
+        spawn(world, "chapter1");
+    }
+
+    if (res.input.keyboard.isPressed(.X)) {
+        spawn(world, "archie");
     }
 }
 
-fn spawn(world: *World) void {
+fn spawn(world: *World, comptime tex_name: []const u8) void {
     const ent = world.createEntity();
     world.setComponent(components.Move, .{ .snap = 1 }, ent);
     world.setComponent(components.Transform, .{ .position = float2.new(0, 0) }, ent);
     world.setComponent(components.Destroyable, .{}, ent);
     world.setComponent(components.Turns, .{ .turn_count = 15 }, ent);
+    world.setComponent(components.Sprite, .{ .texture = Atlas.get(atlas.Texture, tex_name) }, ent);
 }

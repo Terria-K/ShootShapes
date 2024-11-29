@@ -1,12 +1,16 @@
 const InputDevice = @This();
 const Keyboard = @import("Keyboard.zig");
+const Mouse = @import("Mouse.zig");
 keyboard: Keyboard,
+mouse: Mouse,
 disabled: bool,
 pub fn init() InputDevice {
     const keyboard = Keyboard.init();
+    const mouse = Mouse.init();
     return .{
         .keyboard = keyboard,
-        .disabled = false
+        .disabled = false,
+        .mouse = mouse
     };
 }
 
@@ -15,5 +19,6 @@ pub fn update(self: *InputDevice) void {
         return;
     }
 
-    Keyboard.update(&self.keyboard);
+    self.keyboard.update();
+    self.mouse.update();
 }

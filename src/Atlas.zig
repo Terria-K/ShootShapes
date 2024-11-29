@@ -8,8 +8,8 @@ pub fn get(atlas: anytype, comptime str: []const u8) TextureQuad {
         const field_info = std.meta.fields(T)[i];
         const field = @field(atlas, field_info.name);
         return TextureQuad.initFromSize(.{
-            .x = field.width,
-            .y = field.height
+            .x = atlas.__metadata.width,
+            .y = atlas.__metadata.height 
         }, .{
             .x = field.x,
             .y = field.y,

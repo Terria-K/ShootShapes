@@ -94,7 +94,7 @@ pub fn getTypeAndInit(self: *World, comptime T: type) !TypeID {
     return t;
 }
 
-inline fn setComponentInternal(self: *World, comptime T: type, data: anytype, entity: EntityID) !TypeID {
+inline fn setComponentInternal(self: *World, comptime T: type, data: T, entity: EntityID) !TypeID {
     const t = Type.id(T);
     var storage = try getStorage(self, T);
     try storage.set(T, data, entity);
@@ -103,7 +103,7 @@ inline fn setComponentInternal(self: *World, comptime T: type, data: anytype, en
     return t;
 }
 
-pub fn setComponent(self: *World, comptime T: type, data: anytype, entity: EntityID) void {
+pub fn setComponent(self: *World, comptime T: type, data: T, entity: EntityID) void {
     // can we just have a try block?
     const t = setComponentInternal(self, T, data, entity) catch |err| switch (err) {
         std.mem.Allocator.Error.OutOfMemory => @panic("Out of memory!")

@@ -1,0 +1,1 @@
+pub usingnamespace @import("vertex/main.zig");

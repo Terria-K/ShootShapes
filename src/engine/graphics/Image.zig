@@ -10,7 +10,6 @@ width: u32,
 height: u32,
 allocator: std.mem.Allocator,
 data: []u8,
-allocated_from_allocator: bool,
 
 pub fn init(allocator: std.mem.Allocator, width: u32, height: u32, comptime fill: ?u8) !Image {
     const len = width * height * 4;
@@ -35,7 +34,7 @@ pub fn init(allocator: std.mem.Allocator, width: u32, height: u32, comptime fill
         }
     }
 
-    return .{ .allocator = allocator, .width = width, .height = height, .data = data, .allocated_from_allocator = true };
+    return .{ .allocator = allocator, .width = width, .height = height, .data = data };
 }
 
 pub fn loadImage(allocator: std.mem.Allocator, path: []const u8) !Image {
@@ -50,9 +49,10 @@ pub fn loadImage(allocator: std.mem.Allocator, path: []const u8) !Image {
     var y: c_int = undefined;
     var channels_in_file: c_int = undefined;
     const data = stb_image.stbi_load_from_memory(@ptrCast(buffer), @intCast(len), &x, &y, &channels_in_file, 4);
-    const spanned_data = std.mem.span(data);
+    defer std.c.free(data);
+    const actual_data = try allocator.dupe(u8, data[0..@intCast(x * y * channels_in_file)]);
 
-    const image: Image = .{ .width = @intCast(x), .height = @intCast(y), .data = spanned_data, .allocator = allocator, .allocated_from_allocator = false };
+    const image: Image = .{ .width = @intCast(x), .height = @intCast(y), .data = actual_data, .allocator = allocator };
 
     return image;
 }
@@ -68,7 +68,7 @@ pub fn copyFromPixels(self: *Image, pixels: []u8, x: u32, y: u32, src_width: u32
         return;
     }
 
-    const pixel = int2.new(overlaps.x - dest.x, overlaps.y - dest.y); 
+    const pixel = int2.new(overlaps.x - dest.x, overlaps.y - dest.y);
     const size: usize = @intCast(overlaps.width * 4);
 
     for (0..@intCast(overlaps.height)) |yh| {
@@ -80,8 +80,8 @@ pub fn copyFromPixels(self: *Image, pixels: []u8, x: u32, y: u32, src_width: u32
         const over_y = @as(usize, @intCast(overlaps.y));
         const start_src = ((pix_y + stride) * @as(usize, @intCast(width)) + pix_x) * 4;
         const start_dest = ((over_y + stride) * @as(usize, @intCast(self.width)) + over_x) * 4;
-        const src_ptr = pixels.ptr[start_src..start_src + size];
-        const dest_ptr = self.data.ptr[start_dest..start_dest + size];
+        const src_ptr = pixels.ptr[start_src .. start_src + size];
+        const dest_ptr = self.data.ptr[start_dest .. start_dest + size];
 
         @memcpy(dest_ptr, src_ptr);
     }
@@ -96,9 +96,5 @@ pub fn save(self: Image, path: []const u8) void {
 }
 
 pub fn deinit(self: Image) void {
-    if (self.allocated_from_allocator) {
-        self.allocator.free(self.data);
-    } else {
-        std.c.free(@ptrCast(self.data));
-    }
+    self.allocator.free(self.data);
 }

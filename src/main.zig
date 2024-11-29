@@ -1,6 +1,6 @@
 const std = @import("std");
-const structs = @import("engine/structs/main.zig");
-const graphics = @import("engine/graphics/main.zig");
+const structs = @import("engine/structs.zig");
+const graphics = @import("engine/graphics.zig");
 
 const Shader = graphics.Shader; 
 const GraphicsPipeline = graphics.GraphicsPipeline;
@@ -10,14 +10,14 @@ const TransferBuffer = graphics.TransferBuffer;
 
 const GameContext = @import("engine/game.zig").GameContext(AppState);
 const WindowSettings = @import("engine/Window.zig").WindowSettings;
-const ColorTargetInfo = @import("engine/structs/ColorTargetInfo.zig");
-const float4x4 = @import("engine/math/main.zig").float4x4;
-const float4 = @import("engine/math/main.zig").float4;
-const float2 = @import("engine/math/main.zig").float2;
-const ecs = @import("engine/ecs/main.zig");
+const ColorTargetInfo = structs.ColorTargetInfo;
+const float4x4 = @import("engine/math.zig").float4x4;
+const float4 = @import("engine/math.zig").float4;
+const float2 = @import("engine/math.zig").float2;
+const ecs = @import("engine/ecs.zig");
 const InputDevice = @import("engine/input/InputDevice.zig");
 
-const PCV = @import("engine/vertex/main.zig").PositionTextureColorConcreteVertex;
+const PCV = @import("engine/vertex.zig").PositionTextureColorConcreteVertex;
 const components = @import("components.zig");
 const systems = @import("systems/main.zig");
 const Batcher = @import("Batcher.zig");
@@ -57,55 +57,15 @@ pub const AppState = struct {
         };
     }
 
-    fn test_void(allocator: std.mem.Allocator) !void {
-        const fs = std.fs;
-        const Image = @import("engine/graphics/main.zig").Image;
-        const Packer = @import("build/texture_packer.zig").Packer(Image);
-        const expect = @import("std").testing.expect;
-        var packer = Packer.init(allocator, .{});
-        defer packer.deinit();
-
-        var dir = try fs.cwd().openDir("assets/textures", .{ .iterate = true });
-        var walker = try dir.walk(allocator);
-        defer walker.deinit();
-
-        var images = std.ArrayList(Image).init(allocator);
-        defer images.deinit();
-
-        defer {
-            for (images.items) |image| {
-                image.deinit();
-            }    
-        }
-
-        while (try walker.next()) |entry| {
-            const source = try std.fs.path.join(allocator, &[_][]const u8 { "assets/textures", entry.path });
-            std.log.warn("{s}", .{source});
-            defer allocator.free(source);
-            try images.append(try Image.loadImage(allocator, source));
-        }
-
-        for (images.items) |image| {
-            try packer.add(.{ .width = image.width, .height = image.height, .data = image });
-        }
-
-        var result = try packer.pack();
-        defer result.packed_items.deinit();
-        try expect(result.ok);
-    }
-
     fn load_content(ctx: *GameContext) !void {
         var content_allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer content_allocator.deinit();
 
         const allocator = content_allocator.allocator();
 
-        // try test_void(allocator);
-
-
         var uploader = graphics.TextureUploader.init(allocator, ctx.graphics, .{});
         defer ctx.graphics.release(uploader);
-        ctx.state.res.texture = try uploader.createTextureFromImage(try graphics.Image.loadImage(allocator, "assets/textures/chapter1.png"));
+        ctx.state.res.texture = try uploader.createTextureFromImage(try graphics.Image.loadImage(allocator, "assets/result.png"));
         uploader.upload();
 
         ctx.state.sprite_batch_pipeline = try ComputePipeline.loadFile(ctx.graphics, "assets/compiled/spritebatch.comp.spv", .{
@@ -221,5 +181,5 @@ pub fn main() !void {
 
 test {
     _ = @import("build/texture_packer.zig");
-    _ = @import("engine/ecs/main.zig");
+    _ = @import("engine/ecs.zig");
 }
