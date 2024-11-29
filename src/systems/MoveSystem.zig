@@ -51,8 +51,8 @@ pub fn run(self: @This(), world: *World, res: *app.GlobalResource) void {
 
 fn spawn(world: *World) void {
     const ent = world.createEntity();
-    world.setComponent(components.Move, .{ .snap = 2 }, ent);
+    world.setComponent(components.Move, .{ .snap = 1 }, ent);
     world.setComponent(components.Transform, .{ .position = float2.new(0, 0) }, ent);
     world.setComponent(components.Destroyable, .{}, ent);
-    world.setComponent(components.Turns, .{ .turn_count = 4 }, ent);
+    world.setComponent(components.Turns, .{ .turn_count = 15 }, ent);
 }

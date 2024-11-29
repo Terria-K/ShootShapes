@@ -12,15 +12,13 @@ pub fn attributes(allocator: std.mem.Allocator, comptime T: type, slot: u32) ![]
         var attribs = try allocator.alloc(VertexAttribute, elements.len);
 
         var i: u32 = 0;
-        var offset: u32 = 0;
         inline for (elements) |element| {
             attribs[i] = .{
                 .location = i,
                 .buffer_slot = slot,
-                .offset = offset,
-                .format = element
+                .offset = element.offset,
+                .format = element.format
             };
-            offset += element.offset();
             i += 1;
         }
 

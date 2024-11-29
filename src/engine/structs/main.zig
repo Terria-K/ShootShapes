@@ -33,6 +33,13 @@ pub const BufferUsage = packed struct {
     _: u26 = 0
 };
 
+pub const FlipMode = packed struct {
+    vertical: bool = false,
+    horizontal: bool = false,
+
+    _: u6 = 0,
+};
+
 pub const DepthStencilState = @import("DepthStencilState.zig");
 pub const GraphicsPipelineTargetInfo = @import("GraphicsPipelineTargetInfo.zig");
 pub const MultisampleState = @import("MultisampleState.zig");
@@ -46,9 +53,20 @@ pub const TextureSamplerBinding = @import("TextureSamplerBinding.zig");
 pub const TextureTransferInfo = @import("TextureTransferInfo.zig");
 pub const TransferBufferLocation = @import("TransferBufferLocation.zig");
 
+pub const StorageBufferReadWriteBinding = @import("StorageBufferReadWriteBinding.zig");
+pub const StorageTextureReadWriteBinding = @import("StorageTextureReadWriteBinding.zig");
+
 pub const VertexAttribute = @import("VertexAttribute.zig");
 pub const VertexBufferDescription = @import("VertexBufferDescription.zig");
 pub const VertexInputState = @import("VertexInputState.zig");
+
+const VertexElementFormat = @import("../enums/main.zig").VertexElementFormat;
+
+pub const VertexElementAttribute = struct {
+    format: VertexElementFormat,
+    offset: u32
+};
+
 
 fn Tuple(comptime T1: type, comptime T2: type) type {
     return struct {

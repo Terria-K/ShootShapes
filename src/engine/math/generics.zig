@@ -169,6 +169,62 @@ pub fn on(comptime Type: type) type {
                     .height = height
                 };
             }
+
+            pub inline fn containsPoint(self: Rectangle, point: Vec2) bool {
+                return self.left() <= point.x and
+                        point.x < self.right() and
+                        self.top() <= point.y and
+                        point.y < self.bottom();
+            }
+
+            pub inline fn contains(self: Rectangle, other: Rectangle) bool {
+                return other.left() >= self.left() and
+                        other.top() >= self.top() and
+                        other.right() <= self.right() and
+                        other.bottom() <= self.bottom();
+            }
+
+            pub inline fn intersects(self: Rectangle, other: Rectangle) bool {
+                return other.left() < self.right() and
+                        self.left() < other.right() and
+                        other.top() < self.bottom() and
+                        self.top() < other.bottom();
+            }
+
+            pub inline fn overlap(self: Rectangle, other: Rectangle) Rectangle {
+                const overlap_x = self.right() > other.left() and self.left() < other.right();
+                const overlap_y = self.bottom() > other.top() and self.top() < other.bottom();
+
+                var result: Rectangle = std.mem.zeroes(Rectangle);
+
+                if (overlap_x) {
+                    result.x = @max(self.left(), other.left());
+                    result.width = @min(self.right(), other.right()) - result.x;
+                }
+
+                if (overlap_y) {
+                    result.y = @max(self.top(), other.top());
+                    result.height = @min(self.bottom(), other.bottom()) - result.y;
+                }
+
+                return result;
+            }
+
+            pub inline fn left(self: Rectangle) Type {
+                return self.x;
+            }
+
+            pub inline fn right(self: Rectangle) Type {
+                return self.x + self.width;
+            }
+
+            pub inline fn top(self: Rectangle) Type {
+                return self.y;
+            }
+
+            pub inline fn bottom(self: Rectangle) Type {
+                return self.y + self.height;
+            }
         };
 
         pub const Mat4 = extern struct {

@@ -25,3 +25,16 @@ pub inline fn alphaBlend() ColorTargetBlendState {
         .dst_alpha_blendfactor = BlendFactor.OneMinusSrcAlpha
     };
 }
+
+pub inline fn opaqueBlend() ColorTargetBlendState {
+    return .{
+        .enable_blend = true,
+        .alpha_blend_op = BlendOp.Add,
+        .color_blend_op = BlendOp.Add,
+        .color_write_mask = .{ .r = true, .g = true, .b = true, .a = true },
+        .src_alpha_blendfactor = BlendFactor.One,
+        .src_color_blendfactor = BlendFactor.One,
+        .dst_color_blendfactor = BlendFactor.Zero,
+        .dst_alpha_blendfactor = BlendFactor.Zero
+    };
+}

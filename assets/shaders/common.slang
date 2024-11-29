@@ -1,9 +1,11 @@
-struct PositionColorVertex {
+struct PositionColorVertex 
+{
     float4 Position : POSITION0;
     float4 Color : COLOR1;
 }
 
-struct PositionTextureColorVertex {
+struct PositionTextureColorVertex 
+{
     float4 Position : POSITION0;
     float2 TexCoord : TEXCOORD1;
     float4 Color : COLOR2;

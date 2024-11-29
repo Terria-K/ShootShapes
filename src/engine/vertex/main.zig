@@ -3,19 +3,32 @@ const std = @import("std");
 const Color = @import("../graphics/main.zig").Color;
 const float4 = math.float4;
 const float2 = math.float2;
-const VertexAttribute = @import("../structs/VertexAttribute.zig");
-const VertexElementFormat = @import("../enums/main.zig").VertexElementFormat;
+const Attribute = @import("../structs/main.zig").VertexElementAttribute;
 
 pub const PositionTextureColorVertex = extern struct {
     position: float4,
     tex_coord: float2,
     color: Color,
 
-    pub fn generate() [3]VertexElementFormat {
-        return [3]VertexElementFormat {
-            VertexElementFormat.Float4,
-            VertexElementFormat.Float2,
-            VertexElementFormat.UByte4Norm
+    pub fn generate() [3]Attribute {
+        return [3]Attribute {
+            Attribute { .format = .Float4, .offset = 0 },
+            Attribute { .format = .Float2, .offset = 16 },
+            Attribute { .format = .UByte4Norm, .offset = 24 }
+        };
+    }
+};
+
+pub const PositionTextureColorConcreteVertex = extern struct {
+    position: float4,
+    tex_coord: float2,
+    color: float4 align(16),
+
+    pub fn generate() [3]Attribute {
+        return [3]Attribute {
+            Attribute { .format = .Float4, .offset = 0 },
+            Attribute { .format = .Float2, .offset = 16 },
+            Attribute { .format = .Float4, .offset = 32 }
         };
     }
 };
@@ -24,10 +37,10 @@ pub const PositionColorVertex = extern struct {
     position: float4,
     color: Color,
 
-    pub fn generate() [2]VertexElementFormat {
-        return [2]VertexElementFormat {
-            VertexElementFormat.Float4,
-            VertexElementFormat.UByte4Norm
+    pub fn generate() [2]Attribute {
+        return [2]Attribute {
+            Attribute { .format = .Float4, .offset = 0 },
+            Attribute { .format = .Float2, .offset = 16 },
         };
     }
 };

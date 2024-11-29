@@ -19,6 +19,13 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize
     });
 
+
+    const atlas_mod = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .root_source_file = b.path("assets/atlas.zig")
+    });
+
     const build_options = b.addOptions();
 
     const exe = b.addExecutable(.{
@@ -48,6 +55,7 @@ pub fn build(b: *std.Build) void {
     }
 
     const mod = build_options.createModule();
+    exe.root_module.addImport("atlas", atlas_mod);
     exe.root_module.addImport("checks", mod);
     exe.root_module.addImport("ziglangSet", ziglangSet.module("ziglangSet"));
     exe.linkLibC();
@@ -87,25 +95,17 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    main_tests.addCSourceFiles(.{ .files = sourceFiles, .flags = sourceFlags });
+    main_tests.addIncludePath(b.path("lib/include"));
+    main_tests.linkLibC();
 
     main_tests.root_module.addImport("ziglangSet", ziglangSet.module("ziglangSet"));
 
     const run_main_tests = b.addRunArtifact(main_tests);
-
-    const world_tests = b.addTest(.{
-        .root_source_file = b.path("src/engine/ecs/main.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    world_tests.root_module.addImport("ziglangSet", ziglangSet.module("ziglangSet"));
-
-    const run_world_tests = b.addRunArtifact(world_tests);
 
     // Similar to creating the run step earlier, this exposes a `test` step to
     // the `zig build --help` menu, providing a way for the user to request
     // running the unit tests.
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_main_tests.step);
-    test_step.dependOn(&run_world_tests.step);
 }

@@ -4,6 +4,7 @@ const graphics = @import("engine/graphics/main.zig");
 
 const Shader = graphics.Shader; 
 const GraphicsPipeline = graphics.GraphicsPipeline;
+const ComputePipeline = graphics.ComputePipeline;
 const Color = graphics.Color;
 const TransferBuffer = graphics.TransferBuffer;
 
@@ -16,7 +17,7 @@ const float2 = @import("engine/math/main.zig").float2;
 const ecs = @import("engine/ecs/main.zig");
 const InputDevice = @import("engine/input/InputDevice.zig");
 
-const PCV = @import("engine/vertex/main.zig").PositionTextureColorVertex;
+const PCV = @import("engine/vertex/main.zig").PositionTextureColorConcreteVertex;
 const components = @import("components.zig");
 const systems = @import("systems/main.zig");
 const Batcher = @import("Batcher.zig");
@@ -24,41 +25,28 @@ const Batcher = @import("Batcher.zig");
 pub const GlobalResource = struct {
     delta: f64,
     input: *InputDevice,
-    batch: Batcher,
+    batch: graphics.SpriteBatch,
+    default: GraphicsPipeline,
     count: u32,
+    texture: graphics.Texture,
+    sampler: graphics.Sampler,
 };
 
 
 pub const AppState = struct {
-    default: GraphicsPipeline,
-
     mat: float4x4,
     world: ecs.World,
     res: GlobalResource,
     update_container: systems.SystemUpdateContainer,
     draw_container: systems.SystemDrawContainer,
-    point_clamp: graphics.Sampler,
-    texture: graphics.Texture,
+    sprite_batch_pipeline: ComputePipeline,
 
     fn init(ctx: *GameContext) void {
         load_content(ctx) catch {
             @panic("Error!");
         };
         ctx.state.res.count = 0;
-        ctx.state.point_clamp = graphics.Sampler.init(ctx.graphics, structs.SamplerCreateInfo.pointClamp());
-
-        const vertex_transfer_buffer = TransferBuffer.init(PCV, ctx.graphics, 1024, .{ .upload = true });
-        const index_transfer_buffer = TransferBuffer.init(u32, ctx.graphics, 1024, .{ .upload = true });
-        const vert_buffer = graphics.GpuBuffer.init(PCV, ctx.graphics, 1024, .{ .vertex = true });
-        const index_buffer = graphics.GpuBuffer.init(u32, ctx.graphics, 1024, .{ .index = true });
-
-        const batch_data: Batcher = .{
-            .vertex_transfer_buffer = vertex_transfer_buffer,
-            .index_transfer_buffer = index_transfer_buffer,
-            .vert_buffer = vert_buffer,
-            .index_buffer = index_buffer
-        };
-        ctx.state.res.batch = batch_data;
+        ctx.state.res.sampler = graphics.Sampler.init(ctx.graphics, structs.SamplerCreateInfo.pointClamp());
 
         const view = float4x4.createTranslation(0, 0, 0);
         const projection = float4x4.createOrthographicOffCenter(0, 1024, 640, 0, -1, 1);
@@ -69,18 +57,66 @@ pub const AppState = struct {
         };
     }
 
+    fn test_void(allocator: std.mem.Allocator) !void {
+        const fs = std.fs;
+        const Image = @import("engine/graphics/main.zig").Image;
+        const Packer = @import("build/texture_packer.zig").Packer(Image);
+        const expect = @import("std").testing.expect;
+        var packer = Packer.init(allocator, .{});
+        defer packer.deinit();
+
+        var dir = try fs.cwd().openDir("assets/textures", .{ .iterate = true });
+        var walker = try dir.walk(allocator);
+        defer walker.deinit();
+
+        var images = std.ArrayList(Image).init(allocator);
+        defer images.deinit();
+
+        defer {
+            for (images.items) |image| {
+                image.deinit();
+            }    
+        }
+
+        while (try walker.next()) |entry| {
+            const source = try std.fs.path.join(allocator, &[_][]const u8 { "assets/textures", entry.path });
+            std.log.warn("{s}", .{source});
+            defer allocator.free(source);
+            try images.append(try Image.loadImage(allocator, source));
+        }
+
+        for (images.items) |image| {
+            try packer.add(.{ .width = image.width, .height = image.height, .data = image });
+        }
+
+        var result = try packer.pack();
+        defer result.packed_items.deinit();
+        try expect(result.ok);
+    }
+
     fn load_content(ctx: *GameContext) !void {
         var content_allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer content_allocator.deinit();
 
         const allocator = content_allocator.allocator();
 
+        // try test_void(allocator);
+
 
         var uploader = graphics.TextureUploader.init(allocator, ctx.graphics, .{});
         defer ctx.graphics.release(uploader);
-        ctx.state.texture = try uploader.createTextureFromImage(try graphics.Image.loadImage(allocator, "assets/textures/chapter1.png"));
+        ctx.state.res.texture = try uploader.createTextureFromImage(try graphics.Image.loadImage(allocator, "assets/textures/chapter1.png"));
         uploader.upload();
 
+        ctx.state.sprite_batch_pipeline = try ComputePipeline.loadFile(ctx.graphics, "assets/compiled/spritebatch.comp.spv", .{
+            .thread_count = .{ .x = 64, .y = 1, .z = 1 },
+            .readwrite_storage_buffer_count = 1,
+            .readonly_storage_buffer_count = 1
+        });
+
+        const sprite_batch = try graphics.SpriteBatch.init(ctx.allocator, ctx.graphics, 1024, 640, ctx.state.sprite_batch_pipeline);
+
+        ctx.state.res.batch = sprite_batch;
 
         const vertex = try Shader.loadFile(
             ctx.graphics, 
@@ -97,8 +133,9 @@ pub const AppState = struct {
 
         var input_builder = structs.inputStateBuilder(allocator);
         try input_builder.addVertexInputState(PCV, 1);
+        defer input_builder.deinit();
         
-        ctx.state.default = GraphicsPipeline.init(ctx.graphics, .{
+        ctx.state.res.default = GraphicsPipeline.init(ctx.graphics, .{
             .target_info = .{ 
                 .color_target_descriptions = &[1]structs.ColorTargetDescription {
                     .{
@@ -137,11 +174,6 @@ pub const AppState = struct {
         if (texture) |tex| {
             ctx.state.world.runSystems(&ctx.state.draw_container, &ctx.state.res);
 
-            const copy_pass = command_buffer.beginCopyPass();
-            copy_pass.uploadToBuffer(ctx.state.res.batch.vertex_transfer_buffer, ctx.state.res.batch.vert_buffer, true);
-            copy_pass.uploadToBuffer(ctx.state.res.batch.index_transfer_buffer, ctx.state.res.batch.index_buffer, true);
-            copy_pass.end();
-
             const render_pass = command_buffer.beginSingleRenderPass(.{ 
                     .texture = tex, 
                     .clear_color = Color.cornflowerBlue,
@@ -150,12 +182,8 @@ pub const AppState = struct {
                     .cycle = true
                 }
             );
-            render_pass.bindGraphicsPipeline(ctx.state.default);
-            render_pass.bindVertexBuffer(ctx.state.res.batch.vert_buffer, 0);
-            render_pass.bindIndexBuffer(ctx.state.res.batch.index_buffer, .ThirtyTwo);
-            render_pass.bindFragmentSampler(0, .{ .sampler = ctx.state.point_clamp, .texture = ctx.state.texture });
-            command_buffer.pushVertexUniformData(float4x4, ctx.state.mat, 0);
-            render_pass.drawIndexedPrimitives(ctx.state.res.count * 6, 1, 0, 0, 0);
+            ctx.state.res.batch.bind_default_uniform_matrix(command_buffer);
+            ctx.state.res.batch.render(render_pass);
             render_pass.end();
 
             ctx.state.res.count = 0;
@@ -168,13 +196,11 @@ pub const AppState = struct {
         ctx.state.world.deinitSystems(ctx.state.update_container);
         ctx.state.world.deinitSystems(ctx.state.draw_container);
         ctx.state.world.deinit();
-        ctx.graphics.release(ctx.state.texture);
-        ctx.graphics.release(ctx.state.default);
-        ctx.graphics.release(ctx.state.res.batch.vert_buffer);
-        ctx.graphics.release(ctx.state.res.batch.index_buffer);
-        ctx.graphics.release(ctx.state.res.batch.index_transfer_buffer);
-        ctx.graphics.release(ctx.state.res.batch.vertex_transfer_buffer);
-        ctx.graphics.release(ctx.state.point_clamp);
+        ctx.graphics.release(ctx.state.sprite_batch_pipeline);
+        ctx.graphics.release(ctx.state.res.batch);
+        ctx.graphics.release(ctx.state.res.texture);
+        ctx.graphics.release(ctx.state.res.sampler);
+        ctx.graphics.release(ctx.state.res.default);
     }
 };
 
@@ -191,4 +217,9 @@ pub fn main() !void {
         .deinit = AppState.deinit
     });
     std.log.info("{any}", .{gpa.deinit()});
+}
+
+test {
+    _ = @import("build/texture_packer.zig");
+    _ = @import("engine/ecs/main.zig");
 }

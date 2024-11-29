@@ -328,7 +328,7 @@ pub const ComponentStorage = struct {
 
             try self.entities.append(entity_id);
             if (self.count >= self.capacity) {
-                try self.resize(T);
+                try self.resize();
             }
 
             @as([*]T, @alignCast(@ptrCast(self.data)))[self.count] = data;
@@ -374,9 +374,9 @@ pub const ComponentStorage = struct {
         self.entities.deinit();
     }
 
-    fn resize(self: *ComponentStorage, comptime T: type) !void {
-        const bytes: []T = @as([*]T, @alignCast(@ptrCast(self.data)))[0..self.capacity];
+    fn resize(self: *ComponentStorage) !void {
+        const bytes: []u8 = @as([*]u8, @alignCast(@ptrCast(self.data)))[0..self.elem_size * self.capacity];
         self.capacity *= 2;
-        self.data = @ptrCast(try self.allocator.realloc(bytes, self.capacity));
+        self.data = @ptrCast(try self.allocator.realloc(bytes, self.elem_size * self.capacity));
     }
 };

@@ -1,5 +1,7 @@
 const VertexElementFormat = @import("../enums/main.zig").VertexElementFormat;
 const sdl = @cImport(@cInclude("SDL3/SDL.h"));
+const float2 = @import("../math/main.zig").float2;
+const float4 = @import("../math/main.zig").float4;
 
 pub const GpuBuffer = @import("GpuBuffer.zig");
 
@@ -42,6 +44,15 @@ pub const Color = packed struct {
         };
     }
 
+    pub inline fn toVector4(self: Color) float4 {
+        return .{
+            .x = @as(f32, @floatFromInt(self.r)) / 255.0,
+            .y = @as(f32, @floatFromInt(self.g)) / 255.0,
+            .z = @as(f32, @floatFromInt(self.b)) / 255.0,
+            .w = @as(f32, @floatFromInt(self.a)) / 255.0
+        };
+    }
+
     pub inline fn convertToSDLFColor(self: Color) sdl.SDL_FColor {
         const t: sdl.SDL_FColor = .{
             .r = @as(f32, @floatFromInt(self.r)) / 255.0,
@@ -65,6 +76,8 @@ pub const Color = packed struct {
 };
 
 pub const CommandBuffer = @import("CommandBuffer.zig");
+pub const ComputePipeline = @import("ComputePipeline.zig");
+pub const ComputePass = @import("ComputePass.zig");
 pub const Fence = @import("Fence.zig");
 pub const GraphicsDevice = @import("GraphicsDevice.zig");
 pub const GraphicsPipeline = @import("GraphicsPipeline.zig");
@@ -72,6 +85,33 @@ pub const Image = @import("Image.zig");
 pub const RenderPass = @import("RenderPass.zig");
 pub const Sampler = @import("Sampler.zig");
 pub const Shader = @import("Shader.zig");
+pub const SpriteBatch = @import("SpriteBatch.zig");
 pub const Texture = @import("Texture.zig");
 pub const TextureUploader = @import("TextureUploader.zig");
+pub const TextureQuad = @import("TextureQuad.zig");
 pub const TransferBuffer = @import("TransferBuffer.zig");
+
+pub const UV = extern struct {
+    top_left: float2,
+    top_right: float2,
+    bottom_left: float2,
+    bottom_right: float2,
+
+    pub fn init(top_left: float2, top_right: float2, bottom_left: float2, bottom_right: float2) UV {
+        return .{
+            .top_left = top_left,
+            .top_right = top_right,
+            .bottom_left = bottom_left,
+            .bottom_right = bottom_right
+        };
+    }
+
+    pub fn initByDimension(position: float2, dimension: float2) UV {
+        return .{
+            .top_left = position,
+            .top_right = position.add(float2.new(dimension.x, 0)),
+            .bottom_left = position.add(float2.new(0, dimension.y)),
+            .bottom_right = position.add(dimension)
+        };
+    }
+};
