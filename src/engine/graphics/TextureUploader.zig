@@ -29,7 +29,7 @@ pub fn init(allocator: std.mem.Allocator, device: GraphicsDevice, info: TextureU
 }
 
 pub fn createTextureFromImage(self: *TextureUploader, image: Image) !Texture {
-    const texture = Texture.init(self.device, image.width, image.height, .R8G8B8A8_UNORM);
+    const texture = Texture.init(self.device, image.width, image.height, .R8G8B8A8_UNORM, .{ .sampler = true });
     const len = image.data.len;
     const ptr = image.data.ptr;
     const offset = self.copyTextureToTransferBuffer(ptr, len, 16); 

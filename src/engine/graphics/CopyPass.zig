@@ -72,6 +72,18 @@ pub fn uploadToBuffer(self: CopyPass, src: TransferBuffer, dest: GpuBuffer, cycl
     sdl.SDL_UploadToGPUBuffer(self.handle, &source, &destination, cycle);
 }
 
+pub fn downloadFromBuffer(self: CopyPass, src: BufferRegion, dest: TranferBufferLocation) void {
+    var source = structs.convertToSDL(sdl.SDL_GPUBufferRegion, src);
+    var destination = structs.convertToSDL(sdl.SDL_GPUTransferBufferLocation, dest);
+    sdl.SDL_DownloadFromGPUBuffer(self.handle, &source, &destination);
+}
+
+pub fn downloadFromTexture(self: CopyPass, src: TextureRegion, dest: TextureTransferInfo) void {
+    var source = structs.convertToSDL(sdl.SDL_GPUTextureRegion, src);
+    var destination = structs.convertToSDL(sdl.SDL_GPUTextureTransferInfo, dest);
+    sdl.SDL_DownloadFromGPUTexture(self.handle, &source, &destination);
+}
+
 pub fn end(self: CopyPass) void {
     sdl.SDL_EndGPUCopyPass(self.handle);
 }

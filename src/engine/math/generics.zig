@@ -7,7 +7,7 @@ pub fn on(comptime Type: type) type {
         pub inline fn snapped(px: Type, step: Type) Type {
             if (step != 0) {
                 if (@typeInfo(Type) == .Float) {
-                    return math.floor((px / step) + 0.5) * step;
+                    return @floor((px / step) + 0.5) * step;
                 } else {
                     return @divFloor(px, step) + step;
                 }
@@ -37,63 +37,52 @@ pub fn on(comptime Type: type) type {
             }
 
             pub inline fn rotated(self: Vec2, angle: Type) Vec2 {
-                const sin = math.sin(angle);
-                const cos = math.cos(angle);
+                const sin = @sin(angle);
+                const cos = @cos(angle);
                 return Vec2.new(self.x * cos - self.y * sin, self.x * sin + self.y * cos);
             }
 
             pub inline fn floor(self: Vec2) Vec2 {
-                return Vec2.new(math.floor(self.x), math.floor(self.y));
+                return Vec2.new(@floor(self.x), @floor(self.y));
             }
 
             pub inline fn ceil(self: Vec2) Vec2 {
-                return Vec2.new(math.ceil(self.x), math.ceil(self.y));
+                return Vec2.new(@ceil(self.x), @ceil(self.y));
             }
 
             pub inline fn snappedVec(self: Vec2, step: Vec2) Vec2 {
                 return Vec2.new(snapped(self.x, step.x), snapped(self.y, step.y));
             }
 
+            pub inline fn transform(self: Vec2, mat: Mat4) Vec2 {
+                return Vec2.new(
+                    self.x * mat.m11 + self.y * mat.m21 + mat.m41, 
+                    self.x * mat.m12 + self.y * mat.m22 + mat.m42
+                );
+            }
+
             pub inline fn add(self: Vec2, other: Vec2) Vec2 {
-                return .{
-                    .x = self.x + other.x,
-                    .y = self.y + other.y,
-                };
+                return Vec2.new(self.x + other.x, self.y + other.y);
             }
 
             pub inline fn sub(self: Vec2, other: Vec2) Vec2 {
-                return .{
-                    .x = self.x - other.x,
-                    .y = self.y - other.y,
-                };
+                return Vec2.new(self.x - other.x, self.y - other.y);
             }
 
             pub inline fn mulScalar(self: Vec2, scale: Type) Vec2 {
-                return .{
-                    .x = self.x * scale,
-                    .y = self.y * scale,
-                };
+                return Vec2.new(self.x * scale, self.y * scale);
             }
 
             pub inline fn mul(self: Vec2, other: Vec2) Vec2 {
-                return .{
-                    .x = self.x * other.x,
-                    .y = self.y * other.y,
-                };
+                return Vec2.new(self.x * other.x, self.y * other.y);
             }
 
             pub inline fn divScalar(self: Vec2, scale: Type) Vec2 {
-                return .{
-                    .x = self.x / scale,
-                    .y = self.y / scale,
-                };
+                return Vec2.new(self.x / scale, self.y / scale);
             }
 
             pub inline fn div(self: Vec2, other: Vec2) Vec2 {
-                return .{
-                    .x = self.x / other.x,
-                    .y = self.y / other.y,
-                };
+                return Vec2.new(self.x / other.x, self.y / other.y);
             }
 
             pub inline fn toVertexFormat() VertexElementFormat {
@@ -111,15 +100,40 @@ pub fn on(comptime Type: type) type {
             z: Type,
 
             pub inline fn new(x: Type, y: Type, z: Type) Vec3 {
-                return .{ .x = x, .y = y, .z = z };
+                const vec: @Vector(3, Type) = .{ x, y, z };
+                return @bitCast(vec);
             }
 
             pub inline fn floor(self: Vec3) Vec3 {
-                return Vec3.new(math.floor(self.x), math.floor(self.y), math.floor(self.z));
+                return Vec3.new(@floor(self.x), @floor(self.y), @floor(self.z));
             }
 
             pub inline fn ceil(self: Vec3) Vec3 {
-                return Vec3.new(math.ceil(self.x), math.ceil(self.y), math.floor(self.z));
+                return Vec3.new(@ceil(self.x), @ceil(self.y), @floor(self.z));
+            }
+
+            pub inline fn add(self: Vec3, other: Vec3) Vec3 {
+                return Vec3.new(self.x + other.x, self.y + other.y, self.z + other.z);
+            }
+
+            pub inline fn sub(self: Vec3, other: Vec3) Vec3 {
+                return Vec3.new(self.x - other.x, self.y - other.y, self.z - other.z);
+            }
+
+            pub inline fn mulScalar(self: Vec3, scale: Type) Vec3 {
+                return Vec3.new(self.x * scale, self.y * scale, self.z * scale);
+            }
+
+            pub inline fn mul(self: Vec3, other: Vec3) Vec3 {
+                return Vec3.new(self.x * other.x, self.y * other.y, self.z * other.z);
+            }
+
+            pub inline fn divScalar(self: Vec3, scale: Type) Vec3 {
+                return Vec3.new(self.x / scale, self.y / scale, self.z / scale);
+            }
+
+            pub inline fn div(self: Vec3, other: Vec3) Vec3 {
+                return Vec3.new(self.x / other.x, self.y / other.y, self.z / other.z);
             }
 
             pub inline fn toVertexFormat() VertexElementFormat {
@@ -138,15 +152,40 @@ pub fn on(comptime Type: type) type {
             w: Type,
 
             pub inline fn new(x: Type, y: Type, z: Type, w: Type) Vec4 {
-                return .{ .x = x, .y = y, .z = z, .w = w };
+                const vec: @Vector(4, Type) = .{ x, y, z, w };
+                return @bitCast(vec);
             }
 
             pub inline fn floor(self: Vec4) Vec4 {
-                return Vec4.new(math.floor(self.x), math.floor(self.y), math.floor(self.z), math.floor(self.w));
+                return Vec4.new(@floor(self.x), @floor(self.y), @floor(self.z), @floor(self.w));
             }
 
             pub inline fn ceil(self: Vec4) Vec4 {
-                return Vec4.new(math.ceil(self.x), math.ceil(self.y), math.floor(self.z), math.floor(self.w));
+                return Vec4.new(@ceil(self.x), @ceil(self.y), @floor(self.z), @floor(self.w));
+            }
+
+            pub inline fn add(self: Vec4, other: Vec4) Vec4 {
+                return Vec4.new(self.x + other.x, self.y + other.y, self.z + other.z, self.w + other.w);
+            }
+
+            pub inline fn sub(self: Vec4, other: Vec4) Vec4 {
+                return Vec4.new(self.x - other.x, self.y - other.y, self.z - other.z, self.w - other.w);
+            }
+
+            pub inline fn mulScalar(self: Vec4, scale: Type) Vec4 {
+                return Vec4.new(self.x * scale, self.y * scale, self.z * scale, self.w * scale);
+            }
+
+            pub inline fn mul(self: Vec4, other: Vec4) Vec4 {
+                return Vec4.new(self.x * other.x, self.y * other.y, self.z * other.z, self.w * other.w);
+            }
+
+            pub inline fn divScalar(self: Vec4, scale: Type) Vec4 {
+                return Vec4.new(self.x / scale, self.y / scale, self.z / scale, self.w / scale);
+            }
+
+            pub inline fn div(self: Vec4, other: Vec4) Vec4 {
+                return Vec4.new(self.x / other.x, self.y / other.y, self.z / other.z, self.w / other.w);
             }
 
             pub inline fn toVertexFormat() VertexElementFormat {
@@ -316,6 +355,55 @@ pub fn on(comptime Type: type) type {
                     -self.m21, -self.m22, -self.m23, -self.m24,
                     -self.m31, -self.m32, -self.m33, -self.m34,
                     -self.m41, -self.m42, -self.m43, -self.m44,
+                );
+            }
+
+            pub inline fn invert(self: Mat4) ?Mat4 {
+                // Only floats can be evaluated with invert
+                if (@typeInfo(Type) != .Float) {
+                    return null;
+                }
+
+                const d0 = self.m11 * self.m22 - self.m12 * self.m21;
+                const d1 = self.m11 * self.m23 - self.m13 * self.m21;
+                const d2 = self.m11 * self.m24 - self.m14 * self.m21;
+                const d3 = self.m12 * self.m23 - self.m13 * self.m22;
+                const d4 = self.m12 * self.m24 - self.m14 * self.m22;
+                const d5 = self.m13 * self.m24 - self.m14 * self.m23;
+                const d6 = self.m31 * self.m42 - self.m32 * self.m41;
+                const d7 = self.m31 * self.m43 - self.m33 * self.m41;
+                const d8 = self.m31 * self.m44 - self.m34 * self.m41;
+                const d9 = self.m32 * self.m43 - self.m33 * self.m42;
+                const d10 = self.m32 * self.m44 - self.m34 * self.m42;
+                const d11 = self.m33 * self.m44 - self.m34 * self.m43;
+
+                const determinant = d0 * d11 - d1 * d10 + 
+                                    d2 * d9 + d3 * d8 - 
+                                    d4 * d7 + d5 * d6;
+                
+                if (@abs(determinant) < std.math.floatEps(Type)) {
+                    return null;
+                }
+
+                const inverse_det = 1.0 / determinant;
+
+                return Mat4.init(
+                    (self.m22 * d11 - self.m23 * d10 + self.m24 * d9) * inverse_det,
+                    (self.m13 * d10 - self.m12 * d11 - self.m14 * d9) * inverse_det,
+                    (self.m42 * d5 - self.m43 * d4 + self.m44 * d3) * inverse_det,
+                    (self.m33 * d4 - self.m32 * d5 - self.m34 * d3) * inverse_det,
+                    (self.m23 * d8 - self.m21 * d11 - self.m24 * d7) * inverse_det,
+                    (self.m11 * d11 - self.m13 * d8 + self.m14 * d7) * inverse_det,
+                    (self.m43 * d2 - self.m41 * d5 - self.m44 * d1) * inverse_det,
+                    (self.m31 * d5 - self.m33 * d2 + self.m34 * d1) * inverse_det,
+                    (self.m21 * d10 - self.m22 * d8 + self.m24 * d6) * inverse_det,
+                    (self.m12 * d8 - self.m11 * d10 - self.m14 * d6) * inverse_det,
+                    (self.m41 * d4 - self.m42 * d2 + self.m44 * d0) * inverse_det,
+                    (self.m32 * d2 - self.m31 * d4 - self.m34 * d0) * inverse_det,
+                    (self.m22 * d7 - self.m21 * d9 - self.m23 * d6) * inverse_det,
+                    (self.m11 * d9 - self.m12 * d7 + self.m13 * d6) * inverse_det,
+                    (self.m42 * d1 - self.m41 * d3 - self.m43 * d0) * inverse_det,
+                    (self.m31 * d3 - self.m32 * d1 + self.m33 * d0) * inverse_det,
                 );
             }
 

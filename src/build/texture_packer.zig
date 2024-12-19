@@ -54,7 +54,7 @@ pub fn Packer(comptime T: type) type {
 
                     var other_score: Score = undefined;
                     const other_n = self.findNode(n, width, height, &other_score);
-                    if (other_score.isBetterThan(contesting_score)) {
+                    if (other_score.cmp(contesting_score)) {
                         contesting_score = other_score;
                         contesting_node = other_n;
                     }
@@ -174,7 +174,7 @@ pub fn Packer(comptime T: type) type {
                     page_size *= 2;
                 }
 
-                const sizes: [3]uint2 = [3]uint2 {
+                const sizes = [3]uint2 {
                     .{ .x = page_size, .y = page_size },
                     .{ .x = page_size * 2, .y = page_size },
                     .{ .x = page_size, .y = page_size * 2 },
@@ -297,7 +297,7 @@ const Score = struct {
         return .{ .s1 = std.math.maxInt(u32), .s2 = std.math.maxInt(u32) };
     }
 
-    pub inline fn isBetterThan(self: Score, other: Score) bool {
+    pub inline fn cmp(self: Score, other: Score) bool {
         return self.s1 < other.s1 or (self.s1 == other.s1 and self.s2 < other.s2);
     }
 };
@@ -307,14 +307,32 @@ const Node = struct {
     nodes: ?[4]u32 = null
 };
 
+
+fn walkThru(dir_path: []const u8, caller: anytype) !void {
+    var dir = try std.fs.cwd().openDir(dir_path, .{ .iterate = true, });
+    var walker = try dir.walk(std.testing.allocator);
+    defer walker.deinit();
+    var caller_no_const = @constCast(caller);
+
+    while (try walker.next()) |entry| {
+        const source = try std.fs.path.join(std.testing.allocator, &[_][]const u8 { dir_path, entry.path });
+        defer std.testing.allocator.free(source);
+        if (entry.kind == .directory) {
+            continue;
+        }
+        try caller_no_const.call(entry.path, source);
+    }
+}
+
 test "texture_packer" {
+    const StringBuilder = @import("../engine/StringBuilder.zig");
     const Image = @import("../engine/graphics/main.zig").Image;
     const Item = struct {
         name: []u8,
         image: Image,
         allocator: std.mem.Allocator,
 
-        pub fn init(allocator: std.mem.Allocator, name: []const u8, image: Image) !@This() {
+        pub fn init(allocator: std.mem.Allocator, name: []const u8, image: Image) std.mem.Allocator.Error!@This() {
             const n = try allocator.alloc(u8, name.len - 4);
             @memcpy(n, name[0..name.len - 4]);
             return .{
@@ -335,10 +353,6 @@ test "texture_packer" {
     var packer = Packer(Item).init(std.testing.allocator, .{});
     defer packer.deinit();
 
-    var dir = try fs.cwd().openDir("assets/textures", .{ .iterate = true });
-    var walker = try dir.walk(std.testing.allocator);
-    defer walker.deinit();
-
     var images = std.ArrayList(Item).init(std.testing.allocator);
     defer images.deinit();
 
@@ -348,17 +362,27 @@ test "texture_packer" {
         }
     }
 
-    while (try walker.next()) |entry| {
-        const source = try std.fs.path.join(std.testing.allocator, &[_][]const u8 { "assets/textures", entry.path });
-        defer std.testing.allocator.free(source);
-        try images.append(
-            try Item.init(
-                std.testing.allocator, 
-                entry.basename, 
-                try Image.loadImage(std.testing.allocator, source)
-            )
-        );
-    }
+    var dir = try fs.cwd().openDir("assets/textures", .{ .iterate = true });
+    var walker = try dir.walk(std.testing.allocator);
+    defer walker.deinit();
+
+    try walkThru("assets/textures", &struct {
+        images: *std.ArrayList(Item),
+        allocator: std.mem.Allocator,
+        fn call(self: *@This(), path: []const u8, source: []u8) !void {
+            const new_path = try self.allocator.alloc(u8, path.len);
+            defer self.allocator.free(new_path);
+            _ = std.mem.replace(u8, path, "/", "_", new_path);
+            try self.images.append(
+                try Item.init(
+                    std.testing.allocator, 
+                    new_path, 
+                    try Image.loadImage(std.testing.allocator, source)
+                )
+            );
+        }
+    } { .images = &images, .allocator = std.testing.allocator });
+
 
     for (images.items) |item| {
         try packer.add(.{ .width = item.image.width, .height = item.image.height, .data = item });
@@ -378,31 +402,19 @@ test "texture_packer" {
     try string_builder.append("pub const Texture = .{ \n");
     try string_builder.append("   .__metadata");
     try string_builder.append(" = .{\n");
-    try string_builder.append("       .width = ");
-    try string_builder.appendInt(@intCast(result.size.x));
+    try string_builder.append("      .width = ");
+    try string_builder.append(result.size.x);
     try string_builder.append(", ");
     try string_builder.append(".height = ");
-    try string_builder.appendInt(@intCast(result.size.y));
+    try string_builder.append(result.size.y);
     try string_builder.append(", \n");
-    try string_builder.append("    },\n");
+    try string_builder.append("   },\n");
 
     for (result.packed_items.items) |n| {
-        try string_builder.append("   .");
-        try string_builder.append(n.data.name);
-        try string_builder.append(" = .{\n");
-        try string_builder.append("       .x = ");
-        try string_builder.appendInt(n.rect.x);
-        try string_builder.append(", ");
-        try string_builder.append(".y = ");
-        try string_builder.appendInt(n.rect.y);
-        try string_builder.append(", ");
-        try string_builder.append(".width = ");
-        try string_builder.appendInt(n.rect.width);
-        try string_builder.append(", ");
-        try string_builder.append(".height = ");
-        try string_builder.appendInt(n.rect.height);
-        try string_builder.append(", \n");
-        try string_builder.append("    },\n");
+        const t = try std.fmt.allocPrint(std.testing.allocator, "   .{s} = .{{ .x = {d}, .y = {d}, .width = {d}, .height = {d} }},\n", .{n.data.name, n.rect.x, n.rect.y, n.rect.width, n.rect.height});
+        defer std.testing.allocator.free(t);
+
+        try string_builder.append(t);
         atlas_image.copyFromImage(n.data.image, @intCast(n.rect.x), @intCast(n.rect.y));
     }
     atlas_image.save("assets/result.png");
@@ -412,75 +424,7 @@ test "texture_packer" {
     const built_str = try string_builder.build();
     defer std.testing.allocator.free(built_str);
 
-    std.log.warn("{s}", .{built_str});
-
     const file = try std.fs.cwd().createFile("assets/result.zig", .{});
     defer file.close();
     _ = try file.write(built_str);
 }
-
-pub const StringBuilder = struct {
-    allocator: std.mem.Allocator,
-    buffers: [][]u8,
-    count: usize,
-
-    pub fn init(allocator: std.mem.Allocator) !StringBuilder {
-        const buffers = try allocator.alloc([]u8, 8);
-        return .{
-            .allocator = allocator,
-            .buffers = buffers,
-            .count = 0
-        };
-    }
-
-    pub fn append(self: *StringBuilder, str: []const u8) !void {
-        if (self.buffers.len == self.count) {
-            self.buffers = try self.allocator.realloc(self.buffers, self.count * 2);
-        }
-
-        const buffer = try self.allocator.alloc(u8, str.len);
-        @memcpy(buffer, str);
-        self.buffers[self.count] = buffer;
-        self.count += 1;
-    }
-
-    pub fn appendInt(self: *StringBuilder, i: i32) !void {
-        if (self.buffers.len == self.count) {
-            self.buffers = try self.allocator.realloc(self.buffers, self.count * 2);
-        }
-        const p = try std.fmt.allocPrint(self.allocator, "{d}", .{i});
-        defer self.allocator.free(p);
-
-        const buffer = try self.allocator.alloc(u8, p.len);
-        @memcpy(buffer, p);
-        self.buffers[self.count] = buffer;
-        self.count += 1;
-    }
-
-    /// Caller owns this memory
-    pub fn build(self: StringBuilder) ![]u8 {
-        var total_size: usize = 0;
-        for (0..self.count) |i| {
-            total_size += self.buffers[i].len;
-        }
-
-        var buffer = try self.allocator.alloc(u8, total_size);
-        var stride: usize = 0;
-        for (0..self.count) |i| {
-            const buff = self.buffers[i];
-            const len = self.buffers[i].len;
-
-            @memcpy(buffer[stride..stride + len], buff);
-            stride += len;
-        }
-
-        return buffer;
-    }
-
-    pub fn deinit(self: StringBuilder) void {
-        for (0..self.count) |i| {
-            self.allocator.free(self.buffers[i]);
-        }
-        self.allocator.free(self.buffers);
-    }
-};

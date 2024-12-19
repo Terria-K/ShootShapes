@@ -191,6 +191,16 @@ pub fn getComponent(self: *World, comptime T: type, entity: EntityID) *T {
     @panic("Component Type does not existed or used yet.");
 }
 
+pub fn tryGetComponent(self: *World, comptime T: type, entity: EntityID) ?*T {
+    const t = Type.id(T);
+    const storage = self.component_storage.get(t);
+    if (storage) |store| {
+        return store.get(T, entity);
+    } else {
+        return null;
+    }
+}
+
 pub fn createFilter(self: *World) Filter {
     return Filter.init(self.allocator, self);
 }

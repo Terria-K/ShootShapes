@@ -64,7 +64,7 @@ pub fn init(allocator: std.mem.Allocator, device: GraphicsDevice, width: u32, he
     };
 }
 
-pub fn begin(self: *SpriteBatch, pipeline: GraphicsPipeline, texture: Texture, sampler: Sampler) void {
+pub fn begin(self: *SpriteBatch, pipeline: GraphicsPipeline, texture: Texture, sampler: Sampler, matrix: ?float4x4) void {
     if (self.rendered) {
         self.vertex_index = 0;
         self.onQueue = 0;
@@ -81,7 +81,7 @@ pub fn begin(self: *SpriteBatch, pipeline: GraphicsPipeline, texture: Texture, s
     self.batch_queues[self.onQueue] = .{ 
         .count = 0,
         .pipeline = pipeline,
-        .matrix = self.transform,
+        .matrix = if (matrix) |mat| mat else self.transform,
         .offset = self.vertex_index,
         .binding = .{ .texture = texture, .sampler = sampler }
     };
@@ -142,8 +142,7 @@ pub fn bind_default_uniform_matrix(self: *SpriteBatch, cmd: CommandBuffer) void 
     cmd.pushVertexUniformData(float4x4, self.transform, 0);
 }
 
-// Why pushVertexUniformData must be in command buffer scope?? why?????
-// JUST, WHYY???
+
 pub fn render(self: *SpriteBatch, render_pass: RenderPass) void {
     self.rendered = true;
     if (self.vertex_index == 0) {
@@ -155,6 +154,7 @@ pub fn render(self: *SpriteBatch, render_pass: RenderPass) void {
 
     for (0..self.onQueue) |i| {
         const queue = self.batch_queues[i];
+        render_pass.command_buffer.pushVertexUniformData(float4x4, queue.matrix, 0);
         render_pass.bindGraphicsPipeline(queue.pipeline);
         render_pass.bindVertexBuffer(self.vertex_buffer, 0);
         render_pass.bindIndexBuffer(self.index_buffer, .ThirtyTwo);

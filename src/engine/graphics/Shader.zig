@@ -1,9 +1,11 @@
 const Shader = @This();
+const reflection = @import("reflection/shader_reflection.zig");
 const std = @import("std");
 const sdl = @cImport(@cInclude("SDL3/SDL.h"));
 const GraphicsDevice = @import("GraphicsDevice.zig");
-const ShaderStage = @import("../enums/main.zig").ShaderStage;
 const checks = @import("checks");
+
+pub const ShaderStage = @import("../enums/main.zig").ShaderStage;
 
 handle: ?*sdl.SDL_GPUShader,
 
@@ -56,6 +58,26 @@ pub fn loadFile(device: GraphicsDevice, filename: []const u8, shader_info: Shade
     }
 
     return try init(device, code, size, @enumFromInt(@as(u32, @intCast(stage))), shader_info);
+}
+
+pub fn loadFileAuto(allocator: std.mem.Allocator, device: GraphicsDevice, filename: []const u8) !Shader {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+
+    const arena_allocator = arena.allocator(); 
+
+    const buffer = try arena_allocator.alloc(u8, filename.len + 1);
+
+    _ = std.mem.replace(u8, filename, ".spv", ".json", buffer);
+    const r = try reflection.loadReflection(arena_allocator, buffer);
+
+    const shader_info: ShaderInfo = .{
+        .sampler_count = r.sampler_count,
+        .uniform_buffer_count = r.uniform_buffer_count,
+        .storage_buffer_count = r.storage_buffer_count,
+        .storage_texture_count = r.storage_texture_count
+    };
+    return try loadFile(device, filename, shader_info);
 }
 
 pub fn deinit(self: Shader, device: GraphicsDevice) void {

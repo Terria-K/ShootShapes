@@ -1,3 +1,4 @@
+
 import common;
 struct ComputeData 
 {
@@ -11,10 +12,7 @@ struct ComputeData
     float4 Color;
 }
 
-[vk_binding(0, 0)]
 StructuredBuffer<ComputeData> ComputeBuffer : register(t0, space0);
-
-[vk_binding(0, 1)]
 RWStructuredBuffer<PositionTextureColorVertex> VertexBuffer : register(u0, space1);
 
 [numthreads(64, 1, 1)]

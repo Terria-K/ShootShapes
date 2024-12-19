@@ -1,13 +1,13 @@
-pub const MoveSystem = @import("MoveSystem.zig");
-pub const DestroySystem = @import("DestroySystem.zig");
-pub const DrawSystem = @import("DrawSystem.zig");
-
+pub const SystemInitContainer = struct {
+    mouse_system: @import("SpawnWorldSystem.zig"),
+};
 
 pub const SystemUpdateContainer = struct {
-    destroy_system: DestroySystem,
-    move_system: MoveSystem,
+    move_system: @import("MoveSystem.zig"),
+    mouse_system: @import("MouseSystem.zig"),
+    timer_system: @import("TimerSystem.zig")
 };
 
 pub const SystemDrawContainer = struct {
-    draw_system: DrawSystem,
+    draw_system: @import("DrawSystem.zig"),
 };

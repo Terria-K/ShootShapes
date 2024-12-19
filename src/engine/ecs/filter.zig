@@ -6,6 +6,10 @@ const World = @import("World.zig");
 const math = @import("../math/main.zig");
 const EntityID = @import("main.zig").EntityID;
 
+pub fn extends(t: anytype, u: anytype) @TypeOf(t ++ u) {
+    return t ++ u;
+}
+
 pub const Filter = struct {
     included: std.ArrayList(TypeID),
     excluded: std.ArrayList(TypeID),

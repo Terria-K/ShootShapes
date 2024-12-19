@@ -14,6 +14,7 @@ const ColorTargetInfo = structs.ColorTargetInfo;
 const float4x4 = @import("engine/math.zig").float4x4;
 const float4 = @import("engine/math.zig").float4;
 const float2 = @import("engine/math.zig").float2;
+const Camera = @import("engine/Camera.zig");
 const ecs = @import("engine/ecs.zig");
 const InputDevice = @import("engine/input/InputDevice.zig");
 
@@ -21,6 +22,8 @@ const PCV = @import("engine/vertex.zig").PositionTextureColorConcreteVertex;
 const components = @import("components.zig");
 const systems = @import("systems/main.zig");
 const Batcher = @import("Batcher.zig");
+const TurnState = @import("game/main.zig").TurnState;
+
 
 pub const GlobalResource = struct {
     delta: f64,
@@ -30,13 +33,15 @@ pub const GlobalResource = struct {
     count: u32,
     texture: graphics.Texture,
     sampler: graphics.Sampler,
+    camera_matrix: Camera,
+    turn_state: TurnState
 };
 
 
 pub const AppState = struct {
-    mat: float4x4,
     world: ecs.World,
     res: GlobalResource,
+    init_container: systems.SystemInitContainer,
     update_container: systems.SystemUpdateContainer,
     draw_container: systems.SystemDrawContainer,
     sprite_batch_pipeline: ComputePipeline,
@@ -48,13 +53,13 @@ pub const AppState = struct {
         ctx.state.res.count = 0;
         ctx.state.res.sampler = graphics.Sampler.init(ctx.graphics, structs.SamplerCreateInfo.pointClamp());
 
-        const view = float4x4.createTranslation(0, 0, 0);
-        const projection = float4x4.createOrthographicOffCenter(0, 1024, 640, 0, -1, 1);
-        ctx.state.mat = view.mul(projection);
-
         local_init(ctx) catch {
             @panic("Something wrong!");
         };
+        ctx.state.world.runSystems(&ctx.state.init_container, &ctx.state.res);
+
+        ctx.state.res.camera_matrix = Camera.init(1024 / 2, 640 / 2);
+        ctx.state.res.turn_state = .PlayerTurn;
     }
 
     fn load_content(ctx: *GameContext) !void {
@@ -78,16 +83,18 @@ pub const AppState = struct {
 
         ctx.state.res.batch = sprite_batch;
 
-        const vertex = try Shader.loadFile(
+        const vertex = try Shader.loadFileAuto(
+            allocator,
             ctx.graphics, 
-            "assets/compiled/positiontexturecolor.vert" ++ Shader.shaderFormatExtension(),
-            .{
-            .uniform_buffer_count = 1
-        });
-        const fragment = try Shader.loadFile(
+            "assets/compiled/positiontexturecolor.vert" ++ Shader.shaderFormatExtension()
+        );
+
+        const fragment = try Shader.loadFileAuto(
+            allocator, 
             ctx.graphics, 
-            "assets/compiled/texture.frag" ++ Shader.shaderFormatExtension(), 
-            .{ .sampler_count = 1 });
+            "assets/compiled/texture.frag" ++ Shader.shaderFormatExtension()
+        );
+
         defer ctx.graphics.release(vertex);
         defer ctx.graphics.release(fragment);
 
@@ -117,6 +124,7 @@ pub const AppState = struct {
     fn local_init(ctx: *GameContext) !void {
         ctx.state.world = try ecs.World.init(ctx.allocator);
         var world = &ctx.state.world;
+        ctx.state.init_container = try world.createSystems(systems.SystemInitContainer);
         ctx.state.update_container = try world.createSystems(systems.SystemUpdateContainer);
         ctx.state.draw_container = try world.createSystems(systems.SystemDrawContainer);
     }
@@ -136,13 +144,12 @@ pub const AppState = struct {
 
             const render_pass = command_buffer.beginSingleRenderPass(.{ 
                     .texture = tex, 
-                    .clear_color = Color.cornflowerBlue,
+                    .clear_color = Color.black,
                     .load_op = .Clear, 
                     .store_op = .Store,
                     .cycle = true
                 }
             );
-            ctx.state.res.batch.bind_default_uniform_matrix(command_buffer);
             ctx.state.res.batch.render(render_pass);
             render_pass.end();
 
@@ -182,4 +189,5 @@ pub fn main() !void {
 test {
     _ = @import("build/texture_packer.zig");
     _ = @import("engine/ecs.zig");
+    _ = @import("engine/graphics/reflection/shader_reflection.zig");
 }

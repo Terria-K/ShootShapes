@@ -238,7 +238,7 @@ pub const VertexElementFormat = enum(u32) {
     }
 };
 
-pub const IndexElementSIze = enum(u32) {
+pub const IndexElementSize = enum(u32) {
     Sixteen = 0,
     ThirtyTwo = 1
 };

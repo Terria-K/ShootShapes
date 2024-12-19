@@ -1,13 +1,10 @@
 const std = @import("std");
 const World = @import("../engine/ecs/World.zig");
 const app = @import("../main.zig");
-const GameContext = @import("../engine/game.zig").GameContext(app.AppState);
 const EntityFilter = @import("../engine/ecs/filter.zig").EntityFilter;
 const components = @import("../components.zig");
 const float2 = @import("../engine/math/main.zig").float2;
 const float = @import("../engine/math/generics.zig").on(f32);
-const Atlas = @import("../Atlas.zig");
-const atlas = @import("atlas");
 
 filter: *EntityFilter = undefined,
 
@@ -23,43 +20,51 @@ pub fn run(self: @This(), world: *World, res: *app.GlobalResource) void {
     var iter = self.filter.entities.iterator();
     while (iter.next()) |entity| {
         // get all components that entity could have
+        const turns = world.getComponent(components.Turns, entity.*);
         var transform = world.getComponent(components.Transform, entity.*);
-        var turns = world.getComponent(components.Turns, entity.*);
         const move = world.getReadOnlyComponent(components.Move, entity.*);
 
-        if (turns.turn_count <= 0) {
-            continue;
-        }
+        switch (turns.*) {
+            .enemy => |*e| if (res.turn_state == .EnemyTurn) {
+                // Enemy could have a timer
+                if (world.tryGetComponent(components.Timer, entity.*)) |timer| {
+                    if (timer.status == .Reset) {
+                        timer.start();
+                        continue;
+                    }
 
-        // get an axis from a user input
-        const axisX = res.input.keyboard.pressedAxisF(.Left, .Right);
+                    if (timer.status == .Ended) {
+                        e.* -= 1;
+                        transform.position.x += float.snapped(move.snap * 32 * 1, 1);
+                        timer.reset();
 
-        if (axisX != 0) {
-            turns.turn_count -= 1;
-            transform.position.x += float.snapped(move.snap * 32 * axisX, axisX);
-        }
+                        if (e.* <= 0) {
+                            res.turn_state = .PlayerTurn;
+                            e.* = 4;
+                        }
+                    }
+                }
+            },
+            .player => |*p| if (res.turn_state == .PlayerTurn) {
+                // get an axis from a user input
+                const axisX = res.input.keyboard.pressedAxisF(.Left, .Right);
 
-        const axisY = res.input.keyboard.pressedAxisF(.Up, .Down);
-        if (axisY != 0) {
-            turns.turn_count -= 1;
-            transform.position.y += float.snapped(move.snap * 32 * axisY, axisY);
+                if (axisX != 0) {
+                    p.* -= 1;
+                    transform.position.x += float.snapped(move.snap * 32 * axisX, axisX);
+                }
+
+                const axisY = res.input.keyboard.pressedAxisF(.Up, .Down);
+                if (axisY != 0) {
+                    p.* -= 1;
+                    transform.position.y += float.snapped(move.snap * 32 * axisY, axisY);
+                }
+
+                if (p.* <= 0) {
+                    res.turn_state = .EnemyTurn;
+                    p.* = 5;
+                }
+            }
         }
     }
-
-    if (res.input.keyboard.isPressed(.Space)) {
-        spawn(world, "chapter1");
-    }
-
-    if (res.input.keyboard.isPressed(.X)) {
-        spawn(world, "archie");
-    }
-}
-
-fn spawn(world: *World, comptime tex_name: []const u8) void {
-    const ent = world.createEntity();
-    world.setComponent(components.Move, .{ .snap = 1 }, ent);
-    world.setComponent(components.Transform, .{ .position = float2.new(0, 0) }, ent);
-    world.setComponent(components.Destroyable, .{}, ent);
-    world.setComponent(components.Turns, .{ .turn_count = 15 }, ent);
-    world.setComponent(components.Sprite, .{ .texture = Atlas.get(atlas.Texture, tex_name) }, ent);
 }

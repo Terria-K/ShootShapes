@@ -5,11 +5,12 @@ const sdl = @cImport(@cInclude("SDL3/SDL.h"));
 const enums = @import("../enums/main.zig");
 const Shader = @import("Shader.zig");
 const structs = @import("../structs/main.zig");
-const RasterizerState = structs.RasterizerState;
-const MultisampleState = structs.MultisampleState;
-const DepthStencilState = structs.DepthStencilState;
-const GraphicsPipelineTargetInfo = structs.GraphicsPipelineTargetInfo;
-const VertexInputState = structs.VertexInputState;
+pub const RasterizerState = structs.RasterizerState;
+pub const MultisampleState = structs.MultisampleState;
+pub const DepthStencilState = structs.DepthStencilState;
+pub const VertexInputState = structs.VertexInputState;
+pub const GraphicsPipelineTargetInfo = structs.GraphicsPipelineTargetInfo;
+pub const PrimitiveType = enums.PrimitiveType;
 
 handle: ?*sdl.SDL_GPUGraphicsPipeline,
 
@@ -57,7 +58,7 @@ pub const GraphicsPipelineInfo = struct {
     target_info: GraphicsPipelineTargetInfo,
     depth_stencil_state: DepthStencilState,
     multisample_state: MultisampleState,
-    primitive_type: enums.PrimitiveType,
+    primitive_type: PrimitiveType,
     vertex_shader: Shader,
     fragment_shader: Shader,
     vertex_input_state: ?VertexInputState = null,

@@ -33,6 +33,17 @@ pub const BufferUsage = packed struct {
     _: u26 = 0
 };
 
+pub const TextureUsage = packed struct {
+    sampler: bool = false,
+    color_target: bool = false,
+    depth_stencil_target: bool = false,
+    graphics_storage_read: bool = false,
+    compute_storage_read: bool = false,
+    compute_storage_write: bool = false,
+    compute_storage_simultaneous_read_write: bool = false,
+    _: u25 = 0
+};
+
 pub const FlipMode = packed struct {
     vertical: bool = false,
     horizontal: bool = false,
@@ -137,7 +148,7 @@ pub fn inputStateBuilder(allocator: std.mem.Allocator) InputStateBuilder {
     return InputStateBuilder.init(allocator);
 }
 
-pub fn convertToSDL(comptime Type: type, src: anytype) Type {
+pub inline fn convertToSDL(comptime Type: type, src: anytype) Type {
     const srcFields = std.meta.fields(@TypeOf(src));
     var dest: Type = .{};
     inline for (srcFields) |field| {

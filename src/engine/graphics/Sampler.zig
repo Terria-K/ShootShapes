@@ -3,7 +3,9 @@ const sdl = @cImport(@cInclude("SDL3/SDL.h"));
 const GraphicsDevice = @import("GraphicsDevice.zig");
 const structs = @import("../structs/main.zig");
 const enums = @import("../enums/main.zig");
-const SamplerCreateInfo = structs.SamplerCreateInfo;
+pub const SamplerCreateInfo = structs.SamplerCreateInfo;
+
+
 handle: ?*sdl.SDL_GPUSampler,
 
 pub fn init(device: GraphicsDevice, info: SamplerCreateInfo) Sampler {

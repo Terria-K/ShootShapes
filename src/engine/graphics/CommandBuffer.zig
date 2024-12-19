@@ -35,7 +35,8 @@ pub fn beginSingleRenderPass(self: CommandBuffer, target: structs.ColorTargetInf
         self.handle, 
         @ptrCast(&color_target_infos), 
         1, 
-        null));
+        null), 
+        self);
 }
 
 pub fn beginRenderPass(self: CommandBuffer, targets: []const structs.ColorTargetInfo, comptime len: usize) RenderPass {
@@ -48,7 +49,8 @@ pub fn beginRenderPass(self: CommandBuffer, targets: []const structs.ColorTarget
         self.handle, 
         @ptrCast(&color_target_infos), 
         @intCast(len), 
-        null));
+        null), 
+        self);
 }
 
 pub fn endRenderPass(_: CommandBuffer, render_pass: RenderPass) void {
@@ -71,7 +73,23 @@ pub fn beginSingleBufferComputePass(self: CommandBuffer, binding: structs.Storag
             self.handle, 
             null, 
             0, 
-            @ptrCast(&buffer_binding), 1)
+            @ptrCast(&buffer_binding), 
+            1)
+        );
+}
+
+pub fn beginBufferComputePass(self: CommandBuffer, bindings: []const structs.StorageBufferReadWriteBinding, comptime len: usize) ComputePass {
+    var buffer_bindings: [len]sdl.SDL_GPUStorageBufferReadWriteBinding = undefined;
+    inline for (0..len) |i| {
+        buffer_bindings[i] = structs.convertToSDL(sdl.SDL_GPUStorageBufferReadWriteBinding, bindings);
+    }
+    return ComputePass.init(
+        sdl.SDL_BeginGPUComputePass(
+            self.handle, 
+            null, 
+            0, 
+            @ptrCast(&buffer_bindings), 
+            @intCast(len))
         );
 }
 

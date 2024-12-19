@@ -1,11 +1,14 @@
 const TransferBuffer = @This();
 const GraphicsDevice = @import("GraphicsDevice.zig");
-const TransferBufferUsage = @import("../structs/main.zig").TransferBufferUsage;
 const sdl = @cImport(@cInclude("SDL3/SDL.h"));
+
+pub const TransferBufferUsage = @import("../structs/main.zig").TransferBufferUsage;
+
 handle: ?*sdl.SDL_GPUTransferBuffer,
 device: GraphicsDevice,
 is_mapped: bool = false,
 size: u32,
+usage: TransferBufferUsage,
 
 pub fn init(comptime TypeSize: type, device: GraphicsDevice, size: u32, usage: TransferBufferUsage) TransferBuffer {
     var create_info: sdl.SDL_GPUTransferBufferCreateInfo = undefined;
@@ -16,6 +19,7 @@ pub fn init(comptime TypeSize: type, device: GraphicsDevice, size: u32, usage: T
         .handle = handle,
         .device = device,
         .size = size,
+        .usage = usage
     };
 }
 
@@ -25,6 +29,7 @@ pub fn initUnknown(device: GraphicsDevice, size: u32, usage: TransferBufferUsage
     create_info.usage = @bitCast(usage);
     const handle = sdl.SDL_CreateGPUTransferBuffer(device.handle, &create_info);
     return .{
+        .usage = usage,
         .handle = handle,
         .device = device,
         .size = size,

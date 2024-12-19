@@ -5,10 +5,17 @@ const GpuBuffer = @import("GpuBuffer.zig");
 const GraphicsPipeline = @import("GraphicsPipeline.zig");
 const enums = @import("../enums/main.zig");
 const sdl = @cImport(@cInclude("SDL3/SDL.h"));
+const CommandBuffer = @import("CommandBuffer.zig");
+
+
 handle: ?*sdl.SDL_GPURenderPass,
-pub fn init(handle: ?*sdl.SDL_GPURenderPass) RenderPass {
+command_buffer: CommandBuffer,
+
+
+pub fn init(handle: ?*sdl.SDL_GPURenderPass, cmd_buf: CommandBuffer) RenderPass {
     return .{
-        .handle = handle
+        .handle = handle,
+        .command_buffer = cmd_buf
     };
 }
 
@@ -30,7 +37,7 @@ pub fn bindVertexBuffer(self: RenderPass, buffer: GpuBuffer, slot: u32) void {
     sdl.SDL_BindGPUVertexBuffers(self.handle, slot, @ptrCast(&bindings), 1);
 }
 
-pub fn bindIndexBuffer(self: RenderPass, buffer: GpuBuffer, size: enums.IndexElementSIze) void {
+pub fn bindIndexBuffer(self: RenderPass, buffer: GpuBuffer, size: enums.IndexElementSize) void {
     var binding: sdl.SDL_GPUBufferBinding = undefined;
     binding.buffer = buffer.handle;
     binding.offset = 0;
