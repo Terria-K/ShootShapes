@@ -1,5 +1,9 @@
-slangc shaders/positiontexturecolor.vert.slang -entry main -o compiled/positiontexturecolor.vert.spv -emit-spirv-via-glsl
-slangc shaders/positioncolor.vert.slang -entry main -o compiled/positioncolor.vert.spv -emit-spirv-via-glsl
-slangc shaders/solidcolor.frag.slang -entry main -o compiled/solidcolor.frag.spv -emit-spirv-via-glsl
-slangc shaders/texture.frag.slang -entry main -o compiled/texture.frag.spv -emit-spirv-via-glsl
-slangc shaders/spritebatch.comp.slang -entry main -o compiled/spritebatch.comp.spv -emit-spirv-via-glsl
+compile() {
+    slangc "shaders/$1.slang" -entry main -O3 -o "compiled/$1.spv" -emit-spirv-via-glsl -reflection-json "compiled/$1.json"
+}
+
+compile positiontexturecolor.vert
+compile positioncolor.vert
+compile solidcolor.frag
+compile texture.frag
+compile spritebatch.comp

@@ -1,12 +1,19 @@
 const ComputePipeline = @This();
 const GraphicsDevice = @import("GraphicsDevice.zig");
 const uint3 = @import("../math/generics.zig").on(u32).Vec3;
+
+const reflection = @import("reflection/shader_reflection.zig");
 const sdl = @cImport(@cInclude("SDL3/SDL.h"));
+const std = @import("std");
 const checks = @import("checks");
+
+pub const Error = @import("Shader.zig").Error || error {
+    FailedToCreateComputePipeline
+};
 
 handle: ?*sdl.SDL_GPUComputePipeline,
 
-pub fn init(device: GraphicsDevice, code: ?*anyopaque, size: usize, info: ComputePipelineCreateInfo) !ComputePipeline {
+pub fn init(device: GraphicsDevice, code: ?*anyopaque, size: usize, info: ComputePipelineCreateInfo) Error!ComputePipeline {
     const format = 
     if (checks.is_windows) 
         sdl.SDL_GPU_SHADERFORMAT_DXIL
@@ -32,7 +39,7 @@ pub fn init(device: GraphicsDevice, code: ?*anyopaque, size: usize, info: Comput
 
     if (handle == null) {
         sdl.SDL_free(handle);
-        return error.FailedToCreateComputePipeline;
+        return Error.FailedToCreateComputePipeline;
     }
 
     return .{
@@ -40,15 +47,40 @@ pub fn init(device: GraphicsDevice, code: ?*anyopaque, size: usize, info: Comput
     };
 }
 
-pub fn loadFile(device: GraphicsDevice, filename: []const u8, info: ComputePipelineCreateInfo) !ComputePipeline {
+pub fn loadFile(device: GraphicsDevice, filename: []const u8, info: ComputePipelineCreateInfo) Error!ComputePipeline {
     var size: usize = undefined;
     const code = sdl.SDL_LoadFile(@ptrCast(filename), &size);
     defer sdl.SDL_free(code);
     if (code == null) {
-        return error.FailedToLoadShaderFromDisk;
+        return Error.FailedToLoadShaderFromDisk;
     }
 
     return try init(device, code, size, info);
+}
+
+pub fn loadFileAuto(allocator: std.mem.Allocator, device: GraphicsDevice, filename: []const u8, thread_count: uint3) (Error || std.mem.Allocator.Error)!ComputePipeline {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+
+    const arena_allocator = arena.allocator(); 
+
+    const buffer = try arena_allocator.alloc(u8, filename.len + 1);
+
+    _ = std.mem.replace(u8, filename, ".spv", ".json", buffer);
+    const r = reflection.loadReflection(arena_allocator, buffer) catch {
+        return Error.ShaderReflectionFileNotFound;
+    };
+
+    const compute_info: ComputePipelineCreateInfo = .{
+        .sampler_count = r.sampler_count,
+        .thread_count = thread_count,
+        .uniform_buffer_count = r.uniform_buffer_count,
+        .readonly_storage_buffer_count = r.storage_buffer_count,
+        .readonly_storage_texture_count = r.storage_texture_count,
+        .readwrite_storage_buffer_count = r.readwrite_storage_buffer_count,
+        .readwrite_storage_texture_count = r.readwrite_storage_texture_count
+    };
+    return try loadFile(device, filename, compute_info);
 }
 
 pub fn deinit(self: ComputePipeline, device: GraphicsDevice) void {

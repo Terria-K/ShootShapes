@@ -16,6 +16,7 @@ const Sampler = @import("Sampler.zig");
 const float2 = @import("../math/main.zig").float2;
 const float4 = @import("../math/main.zig").float4;
 const float4x4 = @import("../math/main.zig").float4x4;
+const ColorType = @import("../enums.zig").ColorType;
 const structs = @import("../structs/main.zig");
 
 pub const INITIAL_SIZE = 4096;
@@ -93,6 +94,11 @@ pub fn draw(self: *SpriteBatch, cmd: DrawCommand) void {
         self.resize_buffer();
     }
 
+    const col = if (cmd.color_type == .Premultiply) 
+        cmd.color.premultiply()
+     else 
+        cmd.color;
+
     var data = @as([*]CompData, @alignCast(@ptrCast(self.mapped)));
     const index: usize = @intCast(self.vertex_index);
     data[index] = .{
@@ -103,7 +109,7 @@ pub fn draw(self: *SpriteBatch, cmd: DrawCommand) void {
         .dimension = float2.new(cmd.texture_quad.source.width, cmd.texture_quad.source.height),
         .rotation = cmd.rotation,
         .depth = cmd.depth,
-        .color = cmd.color.toVector4()
+        .color = col.toVector4()
     };
     self.vertex_index += 1;
 }
@@ -232,7 +238,8 @@ const DrawCommand = struct {
     origin: float2 = float2.new(0, 0),
     rotation: f32 = 0,
     depth: f32 = 1,
-    color: Color = .{ .r = 255, .g = 255, .b = 255, .a = 255 }
+    color: Color = .{ .r = 255, .g = 255, .b = 255, .a = 255 },
+    color_type: ColorType = .Premultiply
 };
 
 const BatchQueue = struct {

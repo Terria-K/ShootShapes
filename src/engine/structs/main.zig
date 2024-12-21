@@ -109,7 +109,7 @@ pub const InputStateBuilder = struct {
         self.input_states.deinit();
     }
 
-    pub fn addVertexInputState(self: *InputStateBuilder, comptime T: type, step_rate: u32) !void {
+    pub fn addVertexInputState(self: *InputStateBuilder, comptime T: type, step_rate: u32) std.mem.Allocator.Error!void {
         const attrib = try VertexAttribute.attributes(self.allocator, T, @intCast(self.slot));
         const description: VertexBufferDescription = .{ 
             .input_rate = .Vertex, 
@@ -122,7 +122,7 @@ pub const InputStateBuilder = struct {
         self.slot += 1;
     }
 
-    pub fn build(self: InputStateBuilder) !VertexInputState {
+    pub fn build(self: InputStateBuilder) std.mem.Allocator.Error!VertexInputState {
         var binding = try self.allocator.alloc(VertexBufferDescription, self.slot);
         var attributes = try self.allocator.alloc(VertexAttribute, self.strides);
         var i: usize = 0;

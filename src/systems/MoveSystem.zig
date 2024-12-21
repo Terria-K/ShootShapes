@@ -6,6 +6,8 @@ const components = @import("../components.zig");
 const float2 = @import("../engine/math/main.zig").float2;
 const float = @import("../engine/math/generics.zig").on(f32);
 
+const snap_grid = 16;
+
 filter: *EntityFilter = undefined,
 
 pub const filterWith = .{
@@ -35,7 +37,7 @@ pub fn run(self: @This(), world: *World, res: *app.GlobalResource) void {
 
                     if (timer.status == .Ended) {
                         e.* -= 1;
-                        transform.position.x += float.snapped(move.snap * 32 * 1, 1);
+                        transform.position.x += float.snapped(move.snap * snap_grid * 1, 1);
                         timer.reset();
 
                         if (e.* <= 0) {
@@ -51,13 +53,13 @@ pub fn run(self: @This(), world: *World, res: *app.GlobalResource) void {
 
                 if (axisX != 0) {
                     p.* -= 1;
-                    transform.position.x += float.snapped(move.snap * 32 * axisX, axisX);
+                    transform.position.x += float.snapped(move.snap * snap_grid * axisX, axisX);
                 }
 
                 const axisY = res.input.keyboard.pressedAxisF(.Up, .Down);
                 if (axisY != 0) {
                     p.* -= 1;
-                    transform.position.y += float.snapped(move.snap * 32 * axisY, axisY);
+                    transform.position.y += float.snapped(move.snap * snap_grid * axisY, axisY);
                 }
 
                 if (p.* <= 0) {

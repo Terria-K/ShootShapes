@@ -17,6 +17,28 @@ pub const Color = packed struct {
         };
     }
 
+    pub fn fromRGBA(r: u8, g: u8, b: u8, a: u8) Color {
+        return .{
+            .r =  r,
+            .g = g,
+            .b = b,
+            .a = a
+        };
+    }
+
+    pub inline fn fromRGBAPremultiply(r: u8, g: u8, b: u8, a: u8) Color {
+        const alpha: u16 = @intCast(a);
+        const r1 = r * alpha / 255;
+        const g1 = g * alpha / 255;
+        const b1 = b * alpha / 255;
+        return .{
+            .r =  r1,
+            .g = g1,
+            .b = b1,
+            .a = a
+        };
+    }
+
     pub fn fromInt(color: i32) Color {
         return .{
             .r =  color >> 16 & 0xff,
@@ -32,6 +54,19 @@ pub const Color = packed struct {
             .g = color >> 16 & 0xff,
             .b = color >> 8 & 0xff,
             .a = color & 0xff
+        };
+    }
+
+    pub fn premultiply(self: Color) Color {
+        const alpha: u16 = @intCast(self.a);
+        const r = self.r * alpha / 255;
+        const g = self.g * alpha / 255;
+        const b = self.b * alpha / 255;
+        return .{
+            .r = @intCast(r),
+            .g = @intCast(g),
+            .b = @intCast(b),
+            .a = self.a
         };
     }
 
@@ -66,7 +101,7 @@ pub const Color = packed struct {
 	pub const cornflowerBlue = Color.fromInt(0x6495ed);
 	pub const white = Color.fromInt(0xffffff);
 	pub const black = Color.fromInt(0x000000);
-	pub const transparent = Color.fromIntAlpha(0xffffffff);
+	pub const transparent = Color.fromIntAlpha(0x00000000);
 	pub const red = Color.fromInt(0xff0000);
 	pub const green = Color.fromInt(0x00ff00);
 	pub const blue = Color.fromInt(0x0000ff);

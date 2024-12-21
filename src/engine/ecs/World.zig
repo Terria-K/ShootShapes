@@ -300,93 +300,36 @@ pub fn deinit(self: *World) void {
     self.entity_id_stack.deinit();
 }
 
+const SparseSet = @import("sparse_set.zig").SparseSet(100);
 
 pub const ComponentStorage = struct {
-    data: *anyopaque,
-    entities: std.ArrayList(EntityID),
-    capacity: usize,
-    count: usize,
-    elem_size: usize,
+    beta_sparse: SparseSet,
     allocator: std.mem.Allocator,
-    entity_index: std.AutoHashMap(EntityID, u32),
 
     pub fn init(comptime T: type, allocator: std.mem.Allocator) !ComponentStorage {
-        const data_size = @sizeOf(T);
-        const data = try allocator.alloc(u8, data_size * 16);
         return .{
-            .data = @ptrCast(data),
-            .capacity = 16,
-            .elem_size = data_size,
-            .count = 0,
             .allocator = allocator,
-            .entities = std.ArrayList(EntityID).init(allocator),
-            .entity_index = std.AutoHashMap(EntityID, u32).init(allocator)
+            .beta_sparse = try SparseSet.init(T, allocator)
         };
     }
 
     pub fn has(self: *ComponentStorage, entity: EntityID) bool {
-        return self.entity_index.contains(entity);
+        return self.beta_sparse.contains(entity);
     }
 
     pub fn set(self: *ComponentStorage, comptime T: type, data: T, entity_id: EntityID) !void {
-        const entity_idx = try self.entity_index.getOrPut(entity_id);
-
-        if (entity_idx.found_existing) {
-            @as([*]T, @alignCast(@ptrCast(self.data)))[entity_idx.value_ptr.*] = data;
-        } else {
-            entity_idx.value_ptr.* = @intCast(self.count);
-
-            try self.entities.append(entity_id);
-            if (self.count >= self.capacity) {
-                try self.resize();
-            }
-
-            @as([*]T, @alignCast(@ptrCast(self.data)))[self.count] = data;
-
-            self.count += 1;
-        }
+        try self.beta_sparse.set(T, entity_id, data);
     }
 
     pub fn get(self: ComponentStorage, comptime T: type, i: u32) *T {
-        const index = self.entity_index.get(i);
-        return &@as([*]T, @alignCast(@ptrCast(self.data)))[index.?];
+        return self.beta_sparse.get(T, i).?;
     }
 
     pub fn remove(self: *ComponentStorage, i: u32) bool {
-        const index = self.entity_index.get(i);
-
-        if (index) |ind| {
-            const last_element_index = self.count - 1;
-            const last_entity = self.entities.items[last_element_index];
-
-            if (ind != last_element_index) {
-                const dest_dist = (ind * self.elem_size);
-                const src_dist = (last_element_index * self.elem_size);
-                @memcpy(
-                    @as([*]u8, @ptrCast(self.data))[dest_dist..dest_dist + self.elem_size], 
-                    @as([*]u8, @ptrCast(self.data))[src_dist..src_dist + self.elem_size]
-                );
-            }
-            self.count -= 1;
-            _ = self.entities.orderedRemove(ind);
-            _ = self.entity_index.remove(i);
-            if (last_element_index != ind) {
-                self.entity_index.putAssumeCapacity(last_entity, ind);
-            }
-            return true;
-        }
-        return false;
+        return self.beta_sparse.remove(i);
     }
 
     pub fn deinit(self: *ComponentStorage) void {
-        self.allocator.free(@as([*]u8, @alignCast(@ptrCast(self.data)))[0..self.elem_size * self.capacity]);
-        self.entity_index.deinit();
-        self.entities.deinit();
-    }
-
-    fn resize(self: *ComponentStorage) !void {
-        const bytes: []u8 = @as([*]u8, @alignCast(@ptrCast(self.data)))[0..self.elem_size * self.capacity];
-        self.capacity *= 2;
-        self.data = @ptrCast(try self.allocator.realloc(bytes, self.elem_size * self.capacity));
+        self.beta_sparse.deinit();
     }
 };

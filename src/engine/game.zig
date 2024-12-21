@@ -1,5 +1,10 @@
 const std = @import("std");
 const sdl = @cImport(@cInclude("SDL3/SDL.h"));
+const ShaderError = @import("graphics/Shader.zig").Error;
+const ImageError = @import("graphics/Image.zig").Error;
+const ComputePipelineError = @import("graphics/ComputePipeline.zig").Error;
+
+pub const Error = ShaderError || ComputePipelineError || ImageError || std.mem.Allocator.Error;
 
 const GraphicsDevice = @import("graphics/GraphicsDevice.zig");
 const InputDevice = @import("input/InputDevice.zig");
@@ -12,7 +17,7 @@ const FIXED_STEP_MAX_LAP = TimeSpan.fromSeconds(5.0 / 60.0);
 pub fn Events(comptime State: type) type {
     return struct {
         init: ?fn(ctx: *GameContext(State)) void = null,
-        load_content: ?fn(ctx: *GameContext(State)) void = null,
+        load_content: ?fn(ctx: *GameContext(State)) Error!void = null,
         update: ?fn (ctx: *GameContext(State), delta: f64) void = null,
         render: ?fn (ctx: *GameContext(State)) void = null,
         deinit: ?fn (ctx: *GameContext(State)) void = null
@@ -54,7 +59,9 @@ pub fn GameContext(comptime State: type) type {
 
         pub fn run(self: *GameContext(State), comptime loop: Events(State)) void {
             if (loop.load_content) |content| {
-                content(self);
+                content(self) catch {
+                    @panic("Not yet");
+                };
             }
 
             if (loop.init) |ini| {

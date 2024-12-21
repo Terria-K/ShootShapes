@@ -8,12 +8,14 @@ const ComputePipeline = graphics.ComputePipeline;
 const Color = graphics.Color;
 const TransferBuffer = graphics.TransferBuffer;
 
-const GameContext = @import("engine/game.zig").GameContext(AppState);
+const game = @import("engine/game.zig");
+const GameContext = game.GameContext(AppState);
 const WindowSettings = @import("engine/Window.zig").WindowSettings;
 const ColorTargetInfo = structs.ColorTargetInfo;
 const float4x4 = @import("engine/math.zig").float4x4;
 const float4 = @import("engine/math.zig").float4;
 const float2 = @import("engine/math.zig").float2;
+const frect = @import("engine/math.zig").frect;
 const Camera = @import("engine/Camera.zig");
 const ecs = @import("engine/ecs.zig");
 const InputDevice = @import("engine/input/InputDevice.zig");
@@ -45,6 +47,7 @@ pub const AppState = struct {
     update_container: systems.SystemUpdateContainer,
     draw_container: systems.SystemDrawContainer,
     sprite_batch_pipeline: ComputePipeline,
+    target: graphics.Texture,
 
     fn init(ctx: *GameContext) void {
         load_content(ctx) catch {
@@ -60,9 +63,10 @@ pub const AppState = struct {
 
         ctx.state.res.camera_matrix = Camera.init(1024 / 2, 640 / 2);
         ctx.state.res.turn_state = .PlayerTurn;
+        ctx.state.target = graphics.Texture.init(ctx.graphics, 1024, 640, .B8G8R8A8_UNORM, .{ .color_target = true, .sampler = true });
     }
 
-    fn load_content(ctx: *GameContext) !void {
+    fn load_content(ctx: *GameContext) game.Error!void {
         var content_allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer content_allocator.deinit();
 
@@ -73,11 +77,12 @@ pub const AppState = struct {
         ctx.state.res.texture = try uploader.createTextureFromImage(try graphics.Image.loadImage(allocator, "assets/result.png"));
         uploader.upload();
 
-        ctx.state.sprite_batch_pipeline = try ComputePipeline.loadFile(ctx.graphics, "assets/compiled/spritebatch.comp.spv", .{
-            .thread_count = .{ .x = 64, .y = 1, .z = 1 },
-            .readwrite_storage_buffer_count = 1,
-            .readonly_storage_buffer_count = 1
-        });
+        ctx.state.sprite_batch_pipeline = try ComputePipeline.loadFileAuto(
+            allocator, 
+            ctx.graphics, 
+            "assets/compiled/spritebatch.comp.spv",
+            .{ .x = 64, .y = 1, .z = 1 }
+        );
 
         const sprite_batch = try graphics.SpriteBatch.init(ctx.allocator, ctx.graphics, 1024, 640, ctx.state.sprite_batch_pipeline);
 
@@ -140,18 +145,41 @@ pub const AppState = struct {
         const texture = command_buffer.acquireSwapchainTexture(ctx.window);
 
         if (texture) |tex| {
-            ctx.state.world.runSystems(&ctx.state.draw_container, &ctx.state.res);
+            {
+                ctx.state.world.runSystems(&ctx.state.draw_container, &ctx.state.res);
 
-            const render_pass = command_buffer.beginSingleRenderPass(.{ 
-                    .texture = tex, 
-                    .clear_color = Color.black,
-                    .load_op = .Clear, 
-                    .store_op = .Store,
-                    .cycle = true
-                }
-            );
-            ctx.state.res.batch.render(render_pass);
-            render_pass.end();
+                const render_pass = command_buffer.beginSingleRenderPass(.{ 
+                        .texture = ctx.state.target, 
+                        .clear_color = Color.transparent,
+                        .load_op = .Clear, 
+                        .store_op = .Store,
+                        .cycle = true
+                    }
+                );
+
+                ctx.state.res.batch.render(render_pass);
+                render_pass.end();
+            }
+
+
+            {
+                ctx.state.res.batch.begin(ctx.state.res.default, ctx.state.target, ctx.state.res.sampler, null);
+                ctx.state.res.batch.draw(.{
+                    .position = float2.new(0, 0),
+                    .texture_quad = graphics.TextureQuad.initFromTexture(ctx.state.target, frect.init(0, 0, 1024, 640))
+                });
+                ctx.state.res.batch.end();
+                const render_pass = command_buffer.beginSingleRenderPass(.{ 
+                        .texture = tex, 
+                        .clear_color = Color.cornflowerBlue,
+                        .load_op = .Clear, 
+                        .store_op = .Store,
+                        .cycle = true
+                    }
+                );
+                ctx.state.res.batch.render(render_pass);
+                render_pass.end();
+            }
 
             ctx.state.res.count = 0;
         }
@@ -168,6 +196,7 @@ pub const AppState = struct {
         ctx.graphics.release(ctx.state.res.texture);
         ctx.graphics.release(ctx.state.res.sampler);
         ctx.graphics.release(ctx.state.res.default);
+        ctx.graphics.release(ctx.state.target);
     }
 };
 
@@ -186,8 +215,9 @@ pub fn main() !void {
     std.log.info("{any}", .{gpa.deinit()});
 }
 
-test {
+test "full test" {
     _ = @import("build/texture_packer.zig");
     _ = @import("engine/ecs.zig");
+    _ = @import("engine/ecs.zig").SparseSet;
     _ = @import("engine/graphics/reflection/shader_reflection.zig");
 }

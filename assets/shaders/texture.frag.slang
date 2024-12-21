@@ -15,7 +15,7 @@ Texture2D<float4> Texture : register(t0, space2);
 float4 main(VertexOutput Output) : SV_Target0 
 {
     float4 texture = Texture.Sample(Sampler, Output.TexCoord) * Output.Color;
-    if (texture.x == 0) {
+    if (texture.a == 0) {
         discard;
     }
 

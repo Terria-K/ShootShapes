@@ -375,3 +375,8 @@ pub const KeyCode = enum(i32) {
     RightAlt = 230,
     RightMeta = 231
 };
+
+pub const ColorType = enum {
+    Premultiply,
+    NonPremultiplied
+};

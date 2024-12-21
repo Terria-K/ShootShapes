@@ -6,12 +6,17 @@ const stb_image = @cImport(@cInclude("stb_image.h"));
 
 const stb_image_write = @cImport(@cInclude("stb_image_write.h"));
 const std = @import("std");
+
+pub const Error = error {
+    imageNotFound
+};
+
 width: u32,
 height: u32,
 allocator: std.mem.Allocator,
 data: []u8,
 
-pub fn init(allocator: std.mem.Allocator, width: u32, height: u32, comptime fill: ?u8) !Image {
+pub fn init(allocator: std.mem.Allocator, width: u32, height: u32, comptime fill: ?u8) std.mem.Allocator.Error!Image {
     const len = width * height * 4;
     var data = try allocator.alloc(u8, len);
     if (fill) |f| {
@@ -37,14 +42,20 @@ pub fn init(allocator: std.mem.Allocator, width: u32, height: u32, comptime fill
     return .{ .allocator = allocator, .width = width, .height = height, .data = data };
 }
 
-pub fn loadImage(allocator: std.mem.Allocator, path: []const u8) !Image {
-    const file = try std.fs.cwd().openFile(path, .{});
+pub fn loadImage(allocator: std.mem.Allocator, path: []const u8) (Error || std.mem.Allocator.Error)!Image {
+    const file = std.fs.cwd().openFile(path, .{}) catch {
+        return Error.imageNotFound;
+    };
     defer file.close();
-    const len = try file.getEndPos();
+    const len = file.getEndPos() catch {
+        unreachable;
+    };
 
     const buffer = try allocator.alloc(u8, len);
     defer allocator.free(buffer);
-    _ = try file.readAll(buffer);
+    _ = file.readAll(buffer) catch {
+        unreachable;
+    };
     var x: c_int = undefined;
     var y: c_int = undefined;
     var channels_in_file: c_int = undefined;

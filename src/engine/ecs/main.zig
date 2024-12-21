@@ -1,5 +1,6 @@
 const std = @import("std");
 pub const Type = @import("typeid.zig").Type;
+pub const SparseSet = @import("sparse_set.zig");
 
 pub const World = @import("World.zig");
 pub const filter = @import("filter.zig");

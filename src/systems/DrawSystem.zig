@@ -7,25 +7,32 @@ const PCV = @import("../engine/vertex/main.zig").PositionTextureColorVertex;
 const components = @import("../components.zig");
 
 
-pub const filterWith  = .{
+pub const gameplayWith = .{
     components.Transform,
     components.Sprite,
 };
+pub const uiWith = .{
+    components.Transform,
+    components.Sprite
+};
 
-filter: *EntityFilter = undefined,
+gameplay: *EntityFilter = undefined,
+ui: *EntityFilter = undefined,
 
 
 pub fn run(self: @This(), world: *World, res: *app.GlobalResource) void {
+    // gameplay
     res.batch.begin(res.default, res.texture, res.sampler, res.camera_matrix.transform());
 
-    var iter = self.filter.entities.iterator();
+    var iter = self.gameplay.entities.iterator();
     while (iter.next()) |e| {
-        const transform = world.getComponent(components.Transform, e.*);
-        const sprite = world.getComponent(components.Sprite, e.*);
+        const transform = world.getReadOnlyComponent(components.Transform, e.*);
+        const sprite = world.getReadOnlyComponent(components.Sprite, e.*);
         res.batch.draw(.{
             .texture_quad = sprite.texture,
-            .color = .{ .r = 255, .g = 255, .b = 255, .a = 255 },
-            .position = transform.position
+            .color = sprite.color,
+            .position = transform.position,
+            .scale = transform.scale
         });
     }
 
