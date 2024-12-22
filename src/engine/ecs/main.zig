@@ -7,7 +7,6 @@ pub const filter = @import("filter.zig");
 pub const EntityID = u32;
 
 test "ecs" {
-    const EntityFilter = filter.EntityFilter;
     const expect = std.testing.expect;
     const ValueComponent = struct {
         value: i32
@@ -17,14 +16,13 @@ test "ecs" {
     };
 
     const AddSystem = struct {
-        filter: *EntityFilter,
-        pub const filterWith = .{
+        filter: filter.QueryFilter(.{
             ValueComponent,
             AdderComponent
-        };
+        }),
 
         pub fn run(self: @This(), world: *World, _: anytype) void {
-            var iter = self.filter.entities.iterator();
+            var iter = self.filter.filter.entities.iterator();
             while (iter.next()) |e| {
                 const adding = world.getReadOnlyComponent(AdderComponent, e.*);
                 var value = world.getComponent(ValueComponent, e.*);

@@ -191,6 +191,7 @@ pub fn Packer(comptime T: type) type {
                             .rect = .{ .x = 0, .y = 0, .width = @intCast(size.x), .height = @intCast(size.y) },
                         });
 
+                        var retry = false;
                         for (0..slice.len) |i| {
                             const item = slice[i];
                             const iwidth: i32 = @intCast(item.width);
@@ -201,7 +202,8 @@ pub fn Packer(comptime T: type) type {
 
                             if (node_id == std.math.maxInt(u32)) {
                                 // we had to retry packing or abort when there's no best possible node to put
-                                continue;
+                                retry = true;
+                                break;
                             }
 
                             const node = self.nodes.items[node_id];
@@ -211,7 +213,9 @@ pub fn Packer(comptime T: type) type {
                             try packed_items.append(.{ .rect = rect, .data = item.data });
                         }
 
-                        break :done true;
+                        if (!retry) {
+                            break :done true;
+                        }
                     }
                 }
 
@@ -335,6 +339,7 @@ test "texture_packer" {
         pub fn init(allocator: std.mem.Allocator, name: []const u8, image: Image) std.mem.Allocator.Error!@This() {
             const n = try allocator.alloc(u8, name.len - 4);
             @memcpy(n, name[0..name.len - 4]);
+
             return .{
                 .allocator = allocator,
                 .name = n,
@@ -373,6 +378,7 @@ test "texture_packer" {
             const new_path = try self.allocator.alloc(u8, path.len);
             defer self.allocator.free(new_path);
             _ = std.mem.replace(u8, path, "/", "_", new_path);
+
             try self.images.append(
                 try Item.init(
                     std.testing.allocator, 
@@ -416,6 +422,7 @@ test "texture_packer" {
 
         try string_builder.append(t);
         atlas_image.copyFromImage(n.data.image, @intCast(n.rect.x), @intCast(n.rect.y));
+
     }
     atlas_image.save("assets/result.png");
 
