@@ -1,4 +1,5 @@
 const std = @import("std");
+const EntityID = @import("main.zig").EntityID;
 
 
 pub fn SparseSet(comptime page_size: usize) type {
@@ -11,6 +12,7 @@ pub fn SparseSet(comptime page_size: usize) type {
         const SparseSetPaginated = @This();
         allocator: std.mem.Allocator,
         sparse_page: []*Page,
+        entity_ids: std.ArrayList(EntityID),
         dense: *anyopaque,
         dense_size: usize = 0,
         dense_capacity: usize,
@@ -30,11 +32,12 @@ pub fn SparseSet(comptime page_size: usize) type {
                 .dense = @ptrCast(dense),
                 .allocator = allocator,
                 .dense_elem_size = data_size,
-                .dense_capacity = 16
+                .dense_capacity = 16,
+                .entity_ids = std.ArrayList(EntityID).init(allocator)
             };
         }
-        
-        pub fn set(self: *SparseSetPaginated, comptime T: type, id: u32, value: T) !void {
+
+        inline fn setIndex(self: *SparseSetPaginated, id: u32, index: u32) !void {
             const page = id / page_size;
             const sparse_index = id % page_size;
 
@@ -51,15 +54,21 @@ pub fn SparseSet(comptime page_size: usize) type {
             }
 
             var sparse_page = self.sparse_page[page];
-
+            sparse_page.sparse[sparse_index] = index;
+        }
+        
+        pub fn set(self: *SparseSetPaginated, comptime T: type, id: u32, value: T) !void {
             const size = self.dense_size;
+
+            try self.setIndex(id, @intCast(size));
+
             if (size >= self.dense_capacity) {
                 try self.resizeDense();
             }
 
             @as([*]T, @alignCast(@ptrCast(self.dense)))[size] = value;
-            sparse_page.sparse[sparse_index] = @intCast(size);
             self.dense_size += 1;
+            try self.entity_ids.append(id);
         }
 
         fn resizeDense(self: *SparseSetPaginated) !void {
@@ -68,7 +77,7 @@ pub fn SparseSet(comptime page_size: usize) type {
             self.dense = @ptrCast(try self.allocator.realloc(bytes, self.dense_elem_size * self.dense_capacity));
         }
 
-        pub inline fn get_index(self: SparseSetPaginated, id: u32) u32 {
+        inline fn getIndex(self: SparseSetPaginated, id: u32) u32 {
             const page = id / page_size;
             const sparse_index = id % page_size;
 
@@ -83,7 +92,7 @@ pub fn SparseSet(comptime page_size: usize) type {
         }
 
         pub fn get(self: SparseSetPaginated, comptime T: type, id: u32) ?*T {
-            const index = self.get_index(id);
+            const index = self.getIndex(id);
             if (index == dead) {
                 return null;
             }
@@ -91,7 +100,7 @@ pub fn SparseSet(comptime page_size: usize) type {
         }
 
         pub fn contains(self: SparseSetPaginated, id: u32) bool {
-            return self.get_index(id) != dead;
+            return self.getIndex(id) != dead;
         }
 
         pub fn remove(self: *SparseSetPaginated, id: u32) bool {
@@ -109,6 +118,7 @@ pub fn SparseSet(comptime page_size: usize) type {
                 []u8, 
                 @constCast(&dense_aligned[self.dense_elem_size * last_index..self.dense_elem_size * last_index + self.dense_elem_size]), 
                 @constCast(&dense_aligned[self.dense_elem_size * index..self.dense_elem_size * index + self.dense_elem_size]));
+            self.setIndex(self.entity_ids.getLast(), index) catch unreachable;
             self.sparse_page[page].sparse[sparse_index] = dead;
             self.dense_size -= 1;
             return true;
@@ -120,6 +130,7 @@ pub fn SparseSet(comptime page_size: usize) type {
                 self.allocator.destroy(page);
             }
             self.allocator.free(self.sparse_page);
+            self.entity_ids.deinit();
         }
     };
 }

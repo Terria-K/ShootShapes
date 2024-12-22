@@ -50,6 +50,25 @@ pub fn on(comptime Type: type) type {
                 return Vec2.new(@ceil(self.x), @ceil(self.y));
             }
 
+            pub inline fn dot(self: Vec2, other: Vec2) Type {
+                return (self.x * other.x) + (self.y * other.y);
+            }
+
+            pub inline fn normalize(self: Vec2) Vec2 {
+                const val = 1.0 / @sqrt((self.x * self.x) + (self.y * self.y));
+                return Vec2.new(self.x * val, self.y * val);
+            }
+
+            pub inline fn distance(self: Vec2, other: Vec2) Type {
+                const v1 = self.x - other.x;
+                const v2 = self.y - other.y;
+                return @sqrt((v1 * v1) + (v2 * v2));
+            }
+
+            pub inline fn negate(self: Vec2) Vec2 {
+                return Vec2.new(-self.x, -self.y);
+            }
+
             pub inline fn snappedVec(self: Vec2, step: Vec2) Vec2 {
                 return Vec2.new(snapped(self.x, step.x), snapped(self.y, step.y));
             }
@@ -112,6 +131,10 @@ pub fn on(comptime Type: type) type {
                 return Vec3.new(@ceil(self.x), @ceil(self.y), @floor(self.z));
             }
 
+            pub inline fn negate(self: Vec3) Vec3 {
+                return Vec3.new(-self.x, -self.y, -self.z);
+            }
+
             pub inline fn add(self: Vec3, other: Vec3) Vec3 {
                 return Vec3.new(self.x + other.x, self.y + other.y, self.z + other.z);
             }
@@ -162,6 +185,10 @@ pub fn on(comptime Type: type) type {
 
             pub inline fn ceil(self: Vec4) Vec4 {
                 return Vec4.new(@ceil(self.x), @ceil(self.y), @floor(self.z), @floor(self.w));
+            }
+
+            pub inline fn negate(self: Vec4) Vec4 {
+                return Vec4.new(-self.x, -self.y, -self.z, -self.w);
             }
 
             pub inline fn add(self: Vec4, other: Vec4) Vec4 {

@@ -87,3 +87,7 @@ pub const Tween = struct {
         self.started = true;
     }
 };
+
+pub const Tracked = struct {
+    current_pos: float2 = float2.new(0, 0)
+};

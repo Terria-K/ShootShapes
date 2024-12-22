@@ -1,18 +1,16 @@
 const std = @import("std");
 const World = @import("../engine/ecs/World.zig");
 const app = @import("../main.zig");
-const EntityFilter = @import("../engine/ecs/filter.zig").EntityFilter;
+const filter = @import("../engine/ecs/filter.zig");
 const components = @import("../components.zig");
 
-filter: *EntityFilter = undefined,
-
-pub const filterWith = .{
-    components.Timer,
-};
+filter: filter.QueryFilter(.{
+    components.Timer
+}),
 
 
 pub fn run(self: @This(), world: *World, res: *app.GlobalResource) void {
-    var iter = self.filter.entities.iterator();
+    var iter = self.filter.entities().iterator();
     const delta_float: f32 = @floatCast(res.delta);
 
     while (iter.next()) |entity| {

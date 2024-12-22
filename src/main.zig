@@ -112,7 +112,7 @@ pub const AppState = struct {
                 .color_target_descriptions = &[1]structs.ColorTargetDescription {
                     .{
                         .format = ctx.window.swapchain_format,
-                        .blend_state = structs.ColorTargetBlendState.alphaBlend()
+                        .blend_state = structs.ColorTargetBlendState.premultipliedAlphaBlend()
                     }
                 }
             },

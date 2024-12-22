@@ -12,12 +12,14 @@ const entity_cube_size = float2.new(16, 16);
 
 pub fn run(_: @This(), world: *World, _: *app.GlobalResource) void {
     spawnCursorEntity(world);
-    spawnPlayer(world);
-    spawnEnemy(world);
+    const player = spawnPlayer(world);
+    const enemy = spawnEnemy(world);
     spawnArena(world);
     spawnCard(world, 0);
     spawnCard(world, 1);
     spawnCard(world, 2);
+
+    world.setComponentRelation(components.Tracked, .{}, player, enemy);
 }
 
 fn spawnArena(world: *World) void {
@@ -30,7 +32,6 @@ fn spawnArena(world: *World) void {
     world.setComponent(components.Sprite, .{
         .texture = Atlas.get(atlas.Texture, "ui_arena")
     }, arena_entity);
-
 }
 
 fn spawnCard(world: *World, comptime i: u32) void {
@@ -63,7 +64,7 @@ fn spawnCursorEntity(world: *World) void {
     world.setComponent(components.Pulsing, .{}, mouse_entity);
 }
 
-fn spawnPlayer(world: *World) void {
+fn spawnPlayer(world: *World) u32 {
     const player_entity = world.createEntity();
     world.setComponent(components.Move, .{ .snap = 1 }, player_entity);
     world.setComponent(components.Turns, .{ .player = 5 }, player_entity);
@@ -75,17 +76,19 @@ fn spawnPlayer(world: *World) void {
         .scale = entity_cube_size
     }, 
     player_entity);
+    return player_entity;
 }
 
-fn spawnEnemy(world: *World) void {
+fn spawnEnemy(world: *World) u32 {
     const enemy = world.createEntity();
     world.setComponent(components.Move, .{ .snap = 1 }, enemy);
     world.setComponent(components.Turns, .{ .enemy = 4 }, enemy);
     world.setComponent(components.Sprite, .{ .texture = Atlas.get(atlas.Texture, "pixel") }, enemy);
     world.setComponent(components.Timer, components.Timer.init(0.5), enemy);
     world.setComponent(components.Transform, .{ 
-        .position = float2.new(48, 48),
+        .position = float2.new(128, 48),
         .scale = entity_cube_size
     }, 
     enemy);
+    return enemy;
 }

@@ -6,10 +6,6 @@ const World = @import("World.zig");
 const math = @import("../math/main.zig");
 const EntityID = @import("main.zig").EntityID;
 
-pub fn extends(t: anytype, u: anytype) @TypeOf(t ++ u) {
-    return t ++ u;
-}
-
 pub const Filter = struct {
     included: std.ArrayList(TypeID),
     excluded: std.ArrayList(TypeID),
@@ -109,3 +105,39 @@ pub const Signature = struct {
         };
     }
 };
+
+pub fn QueryFilter(tuples: anytype) type {
+    return struct {
+        const Self = @This();
+        filter: *EntityFilter,
+        tuples: @TypeOf(tuples),
+        pub fn init(allocator: std.mem.Allocator, world: *World) !@This() {
+            var filter = Filter.init(allocator, world);
+            inline for (tuples) |t| {
+                const contains = comptime blk: {
+                    break :blk std.mem.containsAtLeast(u8, @typeName(t), 1, "ecs.filter.Without");
+                };
+                if (contains) {
+                    try filter.without((t{}).t);
+                } else {
+                    try filter.with(t);
+                }
+            }
+
+            return .{
+                .filter = try filter.build(world),
+                .tuples = tuples
+            };
+        }
+
+        pub fn entities(self: Self) Set(EntityID) {
+            return self.filter.entities;
+        }
+    };
+}
+
+pub fn Without(comptime T: type) type {
+    return struct {
+        t: type = T
+    };
+}

@@ -1,7 +1,7 @@
 const std = @import("std");
 const app = @import("../main.zig");
 const World = @import("../engine/ecs/World.zig");
-const EntityFilter = @import("../engine/ecs/filter.zig").EntityFilter;
+const filter = @import("../engine/ecs/filter.zig");
 const PCV = @import("../engine/vertex/main.zig").PositionTextureColorVertex;
 const components = @import("../components.zig");
 const float2 = @import("../engine/math.zig").float2;
@@ -10,22 +10,20 @@ const atlas = @import("atlas");
 
 const snap_grid = 16;
 
-pub const filterWith  = .{
+
+filter: filter.QueryFilter(.{
     components.Transform,
     components.Cursor
-};
+}),
 
-pub const pulsingWith = .{
+pulsing: filter.QueryFilter(.{
     components.Pulsing,
     components.Sprite
-};
-
-filter: *EntityFilter = undefined,
-pulsing: *EntityFilter = undefined,
+}),
 
 
 pub fn run(self: @This(), world: *World, res: *app.GlobalResource) void {
-    var iter = self.filter.entities.iterator();
+    var iter = self.filter.entities().iterator();
 
     const mouse_pos = snapPosition(
         res.camera_matrix.screenToWorld(1024, 640, float2.new(res.input.mouse.x, res.input.mouse.y))
@@ -36,13 +34,13 @@ pub fn run(self: @This(), world: *World, res: *app.GlobalResource) void {
 
         transform.position.x = mouse_pos.x;
         transform.position.y = mouse_pos.y;
-        if (res.input.mouse.rightButton().pressed()) {
-            world.destroy(e.*);
-            break;
-        }
+
+        // const dist = mouse_pos.distance(float2.new(200, 50));
+
+        // std.log.debug("{d}", .{dist});
     }
 
-    var pulse_iter = self.pulsing.entities.iterator();
+    var pulse_iter = self.pulsing.entities().iterator();
 
     while (pulse_iter.next()) |e| {
         const pulsing = world.getComponent(components.Pulsing, e.*);
@@ -51,24 +49,6 @@ pub fn run(self: @This(), world: *World, res: *app.GlobalResource) void {
         sprite.color.a = @intFromFloat(@abs(@sin(std.math.pi * pulsing.progress)) * 255);
         pulsing.progress += @floatCast(res.delta);
     }
-
-    if (res.input.mouse.leftButton().pressed()) {
-        spawnPlayer(world);
-    }
-}
-
-fn spawnPlayer(world: *World) void {
-    const player_entity = world.createEntity();
-    world.setComponent(components.Move, .{ .snap = 1 }, player_entity);
-    world.setComponent(components.Turns, .{ .player = 5 }, player_entity);
-    world.setComponent(components.Sprite,.{ 
-        .texture = Atlas.get(atlas.Texture, "pixel")
-    }, player_entity);
-    world.setComponent(components.Transform, .{ 
-        .position = float2.new(0, 0),
-        .scale = float2.new(16, 16)
-    }, 
-    player_entity);
 }
 
 fn snapPosition(pos: float2) float2 {
