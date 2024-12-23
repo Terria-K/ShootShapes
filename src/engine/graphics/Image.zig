@@ -98,6 +98,73 @@ pub fn copyFromPixels(self: *Image, pixels: []u8, x: u32, y: u32, src_width: u32
     }
 }
 
+const qoi = @import("qoi.zig");
+
+pub fn loadQoiImage(allocator: std.mem.Allocator, path: []const u8) (Error || std.mem.Allocator.Error)!Image {
+    const file = std.fs.cwd().openFile(path, .{}) catch {
+        return Error.imageNotFound;
+    };
+    defer file.close();
+    const len = file.getEndPos() catch {
+        unreachable;
+    };
+
+    const buffer = try allocator.alloc(u8, len);
+    defer allocator.free(buffer);
+    _ = file.readAll(buffer) catch {
+        unreachable;
+    };
+
+    var desc: qoi.ImageDescription = undefined;
+    const actual_data = qoi.decode(allocator, buffer, @intCast(len), &desc, 4) catch |e| {
+        switch (e) {
+            error.DimensionIsZero => std.log.err("Dimension of the image is {d}x{d} but 0 are not allowed.", .{desc.width, desc.height}),
+            error.ChannelsHigherThanFour => unreachable,
+            error.ChannelsLowerThanThree => unreachable,
+            error.MaximumSizeReached => std.log.err("Maximum size limit reached!", .{}),
+            error.OutOfMemory => std.log.err("Out of Memory!", .{}),
+            error.TooLow => std.log.err("Buffer too low.", .{}),
+            error.InvalidMagic => std.log.err("Invalid QOI image.", .{})
+        }
+
+        @panic("Something wen't wrong with loading QOI image");
+    };
+
+    const image: Image = .{ .width = desc.width, .height = desc.height, .data = actual_data, .allocator = allocator };
+
+    return image;
+}
+
+pub fn saveToQoi(self: Image, file_path: []const u8) void {
+    const desc: qoi.ImageDescription = .{ .width = self.width, .height = self.height, .channels = 4, .colorspace = .Linear };
+    var len: usize = 0;
+    const encoded = qoi.encode(self.allocator, self.data, &desc, &len) catch |e| blk: {
+        switch (e) {
+            error.DimensionIsZero => std.log.err("Dimension of the image is {d}x{d} but 0 are not allowed.", .{self.width, self.height}),
+            error.ChannelsHigherThanFour => unreachable,
+            error.ChannelsLowerThanThree => unreachable,
+            error.MaximumSizeReached => std.log.err("Maximum size limit reached!", .{}),
+            error.OutOfMemory => std.log.err("Out of Memory!", .{}),
+            error.TooLow => unreachable,
+            error.InvalidMagic => unreachable
+        }
+
+        break :blk null;
+    };
+
+    if (encoded) |e| {
+        var fs = std.fs.cwd().createFile(file_path, .{}) catch {
+            std.log.err("Directory does not exists or is not able to write a file.", .{});
+            return;
+        };
+        defer fs.close();
+        
+        fs.writeAll(e) catch {
+            std.log.err("Cannot write into this file.", .{});
+        };
+    }
+}
+
 pub fn copyFromImage(self: *Image, image: Image, x: u32, y: u32) void {
     self.copyFromPixels(image.data, x, y, image.width, image.height);
 }

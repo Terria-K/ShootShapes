@@ -3,6 +3,8 @@ const sdl = @cImport(@cInclude("SDL3/SDL.h"));
 const float2 = @import("../math/main.zig").float2;
 const float4 = @import("../math/main.zig").float4;
 
+pub const qoi = @import("qoi.zig");
+pub const stockshaders = @import("stockshaders.zig");
 pub const GpuBuffer = @import("GpuBuffer.zig");
 
 pub const Color = packed struct {

@@ -47,6 +47,10 @@ pub fn init(device: GraphicsDevice, code: ?*anyopaque, size: usize, info: Comput
     };
 }
 
+pub fn loadMem(device: GraphicsDevice, mem: []u8, info: ComputePipelineCreateInfo) Error!ComputePipeline {
+    return try init(device, @ptrCast(mem), mem.len, info);
+}
+
 pub fn loadFile(device: GraphicsDevice, filename: []const u8, info: ComputePipelineCreateInfo) Error!ComputePipeline {
     var size: usize = undefined;
     const code = sdl.SDL_LoadFile(@ptrCast(filename), &size);

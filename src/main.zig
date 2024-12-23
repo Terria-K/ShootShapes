@@ -1,29 +1,23 @@
 const std = @import("std");
 const structs = @import("engine/structs.zig");
 const graphics = @import("engine/graphics.zig");
+const components = @import("components.zig");
+const systems = @import("systems/main.zig");
+const ecs = @import("engine/ecs.zig");
+const game = @import("engine/game.zig");
 
-const Shader = graphics.Shader; 
 const GraphicsPipeline = graphics.GraphicsPipeline;
 const ComputePipeline = graphics.ComputePipeline;
 const Color = graphics.Color;
-const TransferBuffer = graphics.TransferBuffer;
 
-const game = @import("engine/game.zig");
 const GameContext = game.GameContext(AppState);
 const WindowSettings = @import("engine/Window.zig").WindowSettings;
-const ColorTargetInfo = structs.ColorTargetInfo;
-const float4x4 = @import("engine/math.zig").float4x4;
-const float4 = @import("engine/math.zig").float4;
 const float2 = @import("engine/math.zig").float2;
 const frect = @import("engine/math.zig").frect;
 const Camera = @import("engine/Camera.zig");
-const ecs = @import("engine/ecs.zig");
 const InputDevice = @import("engine/input/InputDevice.zig");
-
 const PCV = @import("engine/vertex.zig").PositionTextureColorConcreteVertex;
-const components = @import("components.zig");
-const systems = @import("systems/main.zig");
-const Batcher = @import("Batcher.zig");
+
 const TurnState = @import("game/main.zig").TurnState;
 
 
@@ -74,31 +68,24 @@ pub const AppState = struct {
 
         var uploader = graphics.TextureUploader.init(allocator, ctx.graphics, .{});
         defer ctx.graphics.release(uploader);
-        ctx.state.res.texture = try uploader.createTextureFromImage(try graphics.Image.loadImage(allocator, "assets/result.png"));
+        const result = try graphics.Image.loadImage(allocator, "assets/result.png");
+        ctx.state.res.texture = try uploader.createTextureFromImage(result);
         uploader.upload();
 
-        ctx.state.sprite_batch_pipeline = try ComputePipeline.loadFileAuto(
-            allocator, 
-            ctx.graphics, 
-            "assets/compiled/spritebatch.comp.spv",
-            .{ .x = 64, .y = 1, .z = 1 }
-        );
+        const builtin = try graphics.stockshaders.useBuiltins(ctx.graphics, .{ 
+            .positiontexturecolor_vert = true, 
+            .texture_frag = true,
+            .spritebatch_comp = true 
+        });
+
+        ctx.state.sprite_batch_pipeline = builtin.spritebatch_comp;
 
         const sprite_batch = try graphics.SpriteBatch.init(ctx.allocator, ctx.graphics, 1024, 640, ctx.state.sprite_batch_pipeline);
 
         ctx.state.res.batch = sprite_batch;
 
-        const vertex = try Shader.loadFileAuto(
-            allocator,
-            ctx.graphics, 
-            "assets/compiled/positiontexturecolor.vert" ++ Shader.shaderFormatExtension()
-        );
-
-        const fragment = try Shader.loadFileAuto(
-            allocator, 
-            ctx.graphics, 
-            "assets/compiled/texture.frag" ++ Shader.shaderFormatExtension()
-        );
+        const vertex = builtin.positiontexturecolor_vert;
+        const fragment = builtin.texture_frag;
 
         defer ctx.graphics.release(vertex);
         defer ctx.graphics.release(fragment);
@@ -219,5 +206,6 @@ test "full test" {
     _ = @import("build/texture_packer.zig");
     _ = @import("engine/ecs.zig");
     _ = @import("engine/ecs.zig").SparseSet;
+    _ = @import("engine/graphics.zig").Shader;
     _ = @import("engine/graphics/reflection/shader_reflection.zig");
 }

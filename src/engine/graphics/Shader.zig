@@ -46,6 +46,10 @@ pub fn init(device: GraphicsDevice, code: ?*anyopaque, size: usize, stage: Shade
     };
 }
 
+pub fn loadMem(device: GraphicsDevice, mem: []u8, stage: ShaderStage, shader_info: ShaderInfo) Error!Shader {
+    return try init(device, @ptrCast(mem), mem.len, stage, shader_info);
+}
+
 pub fn loadFile(device: GraphicsDevice, filename: []const u8, shader_info: ShaderInfo) Error!Shader {
     var stage: sdl.SDL_GPUShaderStage = 0;
 
