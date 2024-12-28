@@ -3,11 +3,14 @@ pub const SystemInitContainer = struct {
 };
 
 pub const SystemUpdateContainer = struct {
-    move_system: @import("MoveSystem.zig"),
-    mouse_system: @import("CursorSystem.zig"),
+    cursor_system: @import("CursorSystem.zig"),
     timer_system: @import("TimerSystem.zig"),
+
+    player_system: @import("PlayerSystem.zig"),
+    move_system: @import("MoveSystem.zig"),
+
+    tween_system: @import("TweenSystem.zig"),
     card_system: @import("CardSystem.zig"),
-    tween_system: @import("TweenSystem.zig")
 };
 
 pub const SystemDrawContainer = struct {

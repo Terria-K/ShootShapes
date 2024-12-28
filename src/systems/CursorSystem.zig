@@ -31,13 +31,28 @@ pub fn run(self: @This(), world: *World, res: *app.GlobalResource) void {
 
     while (iter.next()) |e| {
         const transform = world.getComponent(components.Transform, e.*);
+        var cursor = world.getComponent(components.Cursor, e.*);
 
         transform.position.x = mouse_pos.x;
         transform.position.y = mouse_pos.y;
 
-        // const dist = mouse_pos.distance(float2.new(200, 50));
+        if (world.getAllAdmirerRelations(components.PlayerStateTransfers, e.*)) |relations| {
+            var relation_iter = relations.iterator();
+            while (relation_iter.next()) |ad| {
+                if (world.getComponentRelation(components.PlayerStateTransfers, ad.*, e.*)) |follow| {
+                    const relative_distance = transform.position.sub(follow.position);
+                    const grid_distance = float2.new(relative_distance.x / 16, relative_distance.y / 16);
 
-        // std.log.debug("{d}", .{dist});
+                    // takes all player's data
+                    cursor.player_position = follow.position;
+                    cursor.grid = grid_distance;
+                }
+            }
+        }
+
+        if (res.input.mouse.leftButton().pressed()) {
+            world.sendMessage(components.Clicked, .{ .pos = float2.new(mouse_pos.x / 16, mouse_pos.y / 16) });
+        }
     }
 
     var pulse_iter = self.pulsing.entities().iterator();

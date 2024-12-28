@@ -17,6 +17,8 @@ entityid_to_typeid_component: std.ArrayList(TypeIDSet),
 relation_storage: std.AutoHashMap(TypeID, RelationComponentStorage),
 entityid_to_typeid_relation: std.ArrayList(TypeIDSet),
 
+message_storage: std.AutoHashMap(TypeID, MessageStorage),
+
 filter_storage: std.AutoHashMap(u64, *EntityFilter),
 typeid_to_hash: std.AutoHashMap(TypeID, std.ArrayList(u64)),
 hash: std.hash.XxHash64,
@@ -29,6 +31,7 @@ pub fn init(allocator: std.mem.Allocator) !World {
         .current_id = 0,
         .component_storage = std.AutoHashMap(TypeID, ComponentStorage).init(allocator),
         .relation_storage = std.AutoHashMap(TypeID, RelationComponentStorage).init(allocator),
+        .message_storage = std.AutoHashMap(TypeID, MessageStorage).init(allocator),
         .allocator = allocator,
         .filter_storage = std.AutoHashMap(u64, *EntityFilter).init(allocator),
         .typeid_to_hash = std.AutoHashMap(TypeID, std.ArrayList(u64)).init(allocator),
@@ -144,7 +147,9 @@ pub fn getReadOnlyComponent(self: *World, comptime T: type, entity: EntityID) *c
     const t = Type.id(T);
     const storage = self.component_storage.get(t);
     if (storage) |store| {
-        return store.get(T, entity);
+        if (store.get(T, entity)) |component| {
+            return component;
+        }
     }
 
     @panic("Component Type does not existed or used yet.");
@@ -154,7 +159,9 @@ pub fn getComponent(self: *World, comptime T: type, entity: EntityID) *T {
     const t = Type.id(T);
     const storage = self.component_storage.get(t);
     if (storage) |store| {
-        return store.get(T, entity);
+        if (store.get(T, entity)) |component| {
+            return component;
+        }
     }
 
     @panic("Component Type does not existed or used yet.");
@@ -212,22 +219,43 @@ pub fn setComponentRelation(self: *World, comptime T: type, data: T, admirer: En
     };
 }
 
-pub fn getAllAdmirerRelations(self: *World, comptime T: type, target: EntityID) EntityIDSet {
+pub fn hasComponentRelation(self: *World, comptime T: type, admirer: EntityID, target: EntityID) bool {
     const t = Type.id(T);
     const storage = self.relation_storage.get(t);
     if (storage) |store| {
-        return store.targets.get(target).?;
+        return store.hasRelations(admirer, target);
     }
-    @panic("Relation component does not existed");
+
+    return false;
 }
 
-pub fn getAllTargetRelations(self: *World, comptime T: type, admirer: EntityID) EntityIDSet {
+pub fn hasAdmirerComponentRelation(self: *World, comptime T: type, entity: EntityID) bool {
     const t = Type.id(T);
     const storage = self.relation_storage.get(t);
     if (storage) |store| {
-        return store.admirers.get(admirer).?;
+        return store.has(entity);
     }
-    @panic("Relation component does not existed");
+
+    return false;
+}
+
+pub fn getAllAdmirerRelations(self: *World, comptime T: type, target: EntityID) ?EntityIDSet {
+    const t = Type.id(T);
+    const storage = self.relation_storage.get(t);
+    if (storage) |store| {
+        return store.targets.get(target);
+    }
+
+    return null;
+}
+
+pub fn getAllTargetRelations(self: *World, comptime T: type, admirer: EntityID) ?EntityIDSet {
+    const t = Type.id(T);
+    const storage = self.relation_storage.get(t);
+    if (storage) |store| {
+        return store.admirers.get(admirer);
+    }
+    return null;
 }
 
 pub fn getComponentRelation(self: *World, comptime T: type, admirer: EntityID, target: EntityID) ?*T {
@@ -240,13 +268,61 @@ pub fn getComponentRelation(self: *World, comptime T: type, admirer: EntityID, t
     return null;
 }
 
+pub fn sendMessage(self: *World, comptime T: type, data: T) void {
+    const id = Type.id(T);
+    const result = self.message_storage.getOrPut(id) catch @panic("Out of Memory");
+    if (!result.found_existing) {
+        result.value_ptr.* = MessageStorage.init(T, self.allocator) catch @panic("Out of Memory");
+    } 
+
+    result.value_ptr.*.add(T, data) catch @panic("Out of Memory");
+}
+
+pub fn receiveFirstMessage(self: *World, comptime T: type) ?*const T {
+    const id = Type.id(T);
+    const storage = self.message_storage.get(id);
+    if (storage) |message| {
+        if (message.count > 0) {
+            return message.getFirst(T);
+        }
+    }
+
+    return null;
+}
+
+pub fn receiveAllMessage(self: *World, comptime T: type) ?[]T {
+    const id = Type.id(T);
+    if (self.message_storage.get(id)) |message| {
+        if (message.count > 0) {
+            return message.getAll(T);
+        }
+    }
+
+    return null;
+}
+
+pub fn hasMessage(self: *World, comptime T: type) bool {
+    const id = Type.id(T);
+    if (self.message_storage.get(id)) |message| {
+        return message.hasSome();
+    }
+    return false;
+}
+
+pub fn update(self: *World) void {
+    var storage = self.message_storage.valueIterator();
+    while (storage.next()) |n| {
+        n.clear();
+    }
+}
+
 pub fn destroy(self: *World, entity: EntityID) void {
-    var relation_set = self.entityid_to_typeid_component.items[entity];
+    var relation_set = self.entityid_to_typeid_relation.items[entity];
     var component_set = self.entityid_to_typeid_component.items[entity];
     var iter = component_set.iterator();
     while (iter.next()) |component_id| {
         // we used ? because we are sure that component_storage is not null at this point
-        var store = self.component_storage.get(component_id.*).?;
+        var store = self.component_storage.getPtr(component_id.*).?;
         _ = store.remove(entity);
 
         if (self.typeid_to_hash.get(component_id.*)) |h| {
@@ -260,8 +336,8 @@ pub fn destroy(self: *World, entity: EntityID) void {
 
     var iter_relation = relation_set.iterator();
     while (iter_relation.next()) |relation_id| {
-        var store = self.relation_storage.get(relation_id.*).?;
-        _ = store.remove(entity);
+        var store = self.relation_storage.getPtr(relation_id.*).?;
+        store.remove(entity);
     }
 
     component_set.clearRetainingCapacity();
@@ -335,6 +411,11 @@ pub fn deinit(self: *World) void {
         storage.deinit();
     }
 
+    var mciter = self.message_storage.valueIterator();
+    while (mciter.next()) |storage| {
+        storage.deinit();
+    }
+
     var tider = self.typeid_to_hash.valueIterator();
     while (tider.next()) |arr| {
         arr.deinit();
@@ -352,6 +433,7 @@ pub fn deinit(self: *World) void {
 
     self.component_storage.deinit();
     self.relation_storage.deinit();
+    self.message_storage.deinit();
     self.filter_storage.deinit();
     self.typeid_to_hash.deinit();
     self.entityid_to_typeid_component.deinit();
@@ -382,8 +464,8 @@ pub const ComponentStorage = struct {
         try self.sparse_set.set(T, entity_id, data);
     }
 
-    pub fn get(self: Self, comptime T: type, i: u32) *T {
-        return self.sparse_set.get(T, i).?;
+    pub fn get(self: Self, comptime T: type, i: u32) ?*T {
+        return self.sparse_set.get(T, i);
     }
 
     pub fn remove(self: *Self, i: u32) bool {
@@ -406,9 +488,10 @@ pub const RelationComponentStorage = struct {
     const Self = @This();
     sparse_set: SparseSet,
     relation_map: std.AutoHashMap(Relationship, RelationshipIndex),
-    entity_to_relationship: std.AutoHashMap(EntityID, Relationship),
+    index_to_relationship: std.AutoHashMap(RelationshipIndex, Relationship),
     admirers: std.AutoHashMap(EntityID, EntityIDSet),
     targets: std.AutoHashMap(EntityID, EntityIDSet),
+    id_set_pool: std.ArrayList(EntityIDSet),
     allocator: std.mem.Allocator,
 
     pub fn init(comptime T: type, allocator: std.mem.Allocator) !Self {
@@ -417,13 +500,38 @@ pub const RelationComponentStorage = struct {
             .relation_map = std.AutoHashMap(Relationship, RelationshipIndex).init(allocator),
             .admirers = std.AutoHashMap(EntityID, EntityIDSet).init(allocator),
             .targets = std.AutoHashMap(EntityID, EntityIDSet).init(allocator),
-            .entity_to_relationship = std.AutoHashMap(EntityID, Relationship).init(allocator),
-            .sparse_set = try SparseSet.init(T, allocator)
+            .index_to_relationship = std.AutoHashMap(RelationshipIndex, Relationship).init(allocator),
+            .sparse_set = try SparseSet.init(T, allocator),
+            .id_set_pool = std.ArrayList(EntityIDSet).init(allocator)
         };
     }
 
-    pub fn has(self: *Self, entity: EntityID) bool {
-        return self.sparse_set.contains(entity);
+    fn createOrGetIDSet(self: *Self) EntityIDSet {
+        if (self.id_set_pool.popOrNull()) |id_set| {
+            var no_const_id_set = @constCast(&id_set);
+            no_const_id_set.clearRetainingCapacity();
+            return no_const_id_set.*;
+        }
+
+        return EntityIDSet.init(self.allocator);
+    }
+
+    fn removeIDSet(self: *Self, id_set: EntityIDSet) void {
+        self.id_set_pool.append(id_set) catch {
+            @panic("Out of Memory");
+        };
+    }
+
+    pub fn hasRelations(self: *const Self, admirer: EntityID, target: EntityID) bool {
+        const relationship = Relationship { .a1 = admirer, .a2 = target };
+        return self.relation_map.contains(relationship);
+    }
+
+    pub fn has(self: *const Self, entity: EntityID) bool {
+        if (self.admirers.get(entity)) |sets| {
+            return !sets.isEmpty();
+        }
+        return false;
     }
 
     pub fn set(self: *Self, comptime T: type, data: T, admirer: EntityID, target: EntityID) !void {
@@ -431,17 +539,17 @@ pub const RelationComponentStorage = struct {
         const relationship = Relationship { .a1 = admirer, .a2 = target };
         try self.relation_map.put(relationship, index);
         try self.sparse_set.set(T, index, data);
-        try self.entity_to_relationship.put(admirer, relationship);
+        try self.index_to_relationship.put(index, relationship);
         const admirer_relation = try self.admirers.getOrPut(admirer);
         if (!admirer_relation.found_existing) {
-            admirer_relation.value_ptr.* = EntityIDSet.init(self.allocator);
+            admirer_relation.value_ptr.* = self.createOrGetIDSet();
         }
 
         _ = try admirer_relation.value_ptr.*.add(target);
 
         const target_relation = try self.targets.getOrPut(target);
         if (!target_relation.found_existing) {
-            target_relation.value_ptr.* = EntityIDSet.init(self.allocator);
+            target_relation.value_ptr.* = self.createOrGetIDSet();
         }
 
         _ = try target_relation.value_ptr.*.add(admirer);
@@ -454,67 +562,66 @@ pub const RelationComponentStorage = struct {
         return null;
     }
 
-    pub fn remove(self: *Self, i: u32) bool {
-        // Check if the entity is an admirer
-        if (self.admirers.get(i)) |sets| {
-
-            // Remove all relationship that this entity made
-            if (self.entity_to_relationship.get(i)) |relation| {
-                _ = self.relation_map.remove(relation);
-            }
-
-            // remove all of its target entity
-            var temp = std.ArrayList(u32).init(self.allocator);
-            defer temp.deinit();
-            var iter = sets.iterator();
-            while (iter.next()) |e| {
-                if (self.targets.get(e.*)) |r| {
-                    r.clearAndFree();
-                    temp.append(e.*) catch {
-                        @panic("Out of memory");
-                    };
-                }
-            }
-            for (temp.items) |e| {
-                self.targets.remove(e);
-            }
-
-            // then proceed to remove this admirer completely
-            sets.clearAndFree();
-            _ = self.admirers.remove(i);
+    pub fn removeRelation(self: *Self, admirer: u32, target: u32) void {
+        // removed all admirer's target
+        if (self.admirers.getPtr(admirer)) |sets| {
+            _ = sets.remove(target);
         }
 
-        // Check if the entity is a target
+        // removed all target's admirer
+        if (self.targets.getPtr(target)) |sets| {
+            _ = sets.remove(admirer);
+        }
+
+        const key = Relationship { .a1 = admirer, .a2 = target};
+        if (self.relation_map.get(key)) |index| {
+            const last_element: u32 = @intCast(self.sparse_set.dense_size - 1);
+            // we swapped the element that is about to removed to the last element
+
+            // [0: 1] [R: 2] [0: 3] [L: 4]
+            if (index != last_element) {
+                const last_relationship = self.index_to_relationship.get(last_element).?;
+                // [0: 1] [R: 2] [0: 3] [L: 2]
+                _ = self.relation_map.remove(key);
+                self.relation_map.putAssumeCapacity(last_relationship, index);
+            }
+            // [0: 1] [R: null] [0: 3] [L: 2]
+            _ = self.index_to_relationship.remove(index);
+            self.index_to_relationship.putAssumeCapacity(last_element, key);
+            // [0: 1] [L: 2] [0: 3] [R: null]
+            _ = self.sparse_set.remove(index);
+        }
+    }
+
+    pub fn remove(self: *Self, i: u32) void {
         if (self.targets.get(i)) |sets| {
-            // remove all admirers that target this entity
-            var temp = std.ArrayList(u32).init(self.allocator);
-            defer temp.deinit();
-
             var iter = sets.iterator();
-            while (iter.next()) |e| {
-                if (self.admirers.get(e.*)) |r| {
-                    r.clearAndFree();
-                }
-                temp.append(e.*) catch {
-                    @panic("Out of Memory");
-                };
-            }
+            while (iter.next()) |admirer| {
+                self.removeRelation(admirer.*, i);
+            } 
 
-            for (temp.items) |e| {
-                self.targets.remove(e);
-            }
-
-            sets.clearAndFree();
+            self.removeIDSet(sets);
             _ = self.targets.remove(i);
         }
 
-        return self.sparse_set.remove(i);
+        if (self.admirers.get(i)) |sets| {
+            var iter = sets.iterator();
+            while (iter.next()) |target| {
+                self.removeRelation(i, target.*);
+            } 
+
+            self.removeIDSet(sets);
+            _ = self.admirers.remove(i);
+        }
+        if (self.admirers.get(i)) |sets| {
+            std.log.info("{any}", .{sets.isEmpty()});
+        }
     }
 
     pub fn deinit(self: *Self) void {
         self.sparse_set.deinit();
         self.relation_map.deinit();
-        self.entity_to_relationship.deinit();
+        self.index_to_relationship.deinit();
 
         var iter = self.admirers.valueIterator();
         while (iter.next()) |r| {
@@ -525,7 +632,67 @@ pub const RelationComponentStorage = struct {
         while (iter_2.next()) |r| {
             r.deinit();
         }
+
+        for (0..self.id_set_pool.items.len) |i| {
+            self.id_set_pool.items[i].deinit();
+        }
         self.admirers.deinit();
         self.targets.deinit();
+        self.id_set_pool.deinit();
     } 
+};
+
+pub const MessageStorage = struct {
+    const Self = @This();
+    allocator: std.mem.Allocator,
+    elem_size: usize,
+    data: ?*anyopaque,
+    capacity: usize,
+    count: usize,
+
+    pub fn init(comptime T: type, allocator: std.mem.Allocator) !Self {
+        const data_size = @sizeOf(T);
+        const data = try allocator.alloc(u8, data_size * 16);
+        return .{
+            .allocator = allocator,
+            .data = @ptrCast(data),
+            .capacity = 16,
+            .count = 0,
+            .elem_size = data_size
+        };
+    }
+
+    fn resize(self: *Self) !void {
+        const data = @as([*]u8, @alignCast(@ptrCast(self.data)))[0..self.elem_size * self.capacity];
+        self.capacity *= 2;
+        self.data = @ptrCast(try self.allocator.realloc(data, self.elem_size * self.capacity));
+    }
+
+    pub fn add(self: *Self, comptime T: type, data: T) !void {
+        if (self.count >= self.capacity) {
+            try self.resize();
+        }
+        @as([*]T, @alignCast(@ptrCast(self.data)))[self.count] = data;
+        self.count += 1;
+    }
+
+    pub fn hasSome(self: *const Self) bool {
+        return self.count > 0;
+    }
+
+    pub fn getAll(self: *Self, comptime T: type) []T {
+        return @as([*]T, @alignCast(@ptrCast(self.data)))[0..self.count];
+    }
+
+    pub fn getFirst(self: *const Self, comptime T: type) *T {
+        return &@as([*]T, @alignCast(@ptrCast(self.data)))[0];
+    }
+
+    pub fn clear(self: *Self) void {
+        self.count = 0;
+    }
+
+    pub fn deinit(self: Self) void {
+        self.allocator.free(@as([*]u8, @alignCast(@ptrCast(self.data)))[0..self.elem_size * self.capacity]);
+    }
 };

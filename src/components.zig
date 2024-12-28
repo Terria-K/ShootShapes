@@ -27,6 +27,19 @@ pub const Turns = union(enum) {
     enemy: i32
 };
 
+pub const TargetTurn = struct {
+    const DirectionAxis = union(enum) {
+        horizontal: f32,
+        vertical: f32
+    };
+    target_dir: DirectionAxis = .{ .horizontal = 0 },
+    turns: i32 = 0
+};
+
+pub const Player = struct {
+    _: u1 = 0
+};
+
 pub const Timer = struct {
     const State = enum(u8) {
         Reset,
@@ -58,7 +71,8 @@ pub const Timer = struct {
 };
 
 pub const Cursor = struct {
-    _: u1 = 0
+    grid: float2 = float2.new(0, 0),
+    player_position: float2 = float2.new(0, 0)
 };
 
 pub const Card = struct {
@@ -90,4 +104,13 @@ pub const Tween = struct {
 
 pub const Tracked = struct {
     current_pos: float2 = float2.new(0, 0)
+};
+
+pub const PlayerStateTransfers = struct {
+    position: float2 = float2.new(0, 0),
+    turns: i32 = 0
+};
+
+pub const Clicked = struct {
+    pos: float2 = float2.new(0, 0)
 };

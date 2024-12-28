@@ -19,8 +19,8 @@ const float4x4 = @import("../math/main.zig").float4x4;
 const ColorType = @import("../enums.zig").ColorType;
 const structs = @import("../structs/main.zig");
 
-pub const INITIAL_SIZE = 4096;
-pub const INITIAL_MAX_QUEUE = 4;
+const INITIAL_SIZE = 1024;
+const INITIAL_MAX_QUEUE = 4;
 
 batch_queues: []BatchQueue,
 device: GraphicsDevice,
@@ -35,7 +35,7 @@ onQueue: usize = 0,
 vertex_index: u32 = 0,
 current_max_texture: u32 = 0,
 transform: float4x4,
-mapped: ?*anyopaque = null,
+mapped: [*]CompData = undefined,
 compute_pipeline: ComputePipeline,
 
 pub fn init(allocator: std.mem.Allocator, device: GraphicsDevice, width: u32, height: u32, pipeline: ComputePipeline) !SpriteBatch {
@@ -65,7 +65,38 @@ pub fn init(allocator: std.mem.Allocator, device: GraphicsDevice, width: u32, he
     };
 }
 
-pub fn begin(self: *SpriteBatch, pipeline: GraphicsPipeline, texture: Texture, sampler: Sampler, matrix: ?float4x4) void {
+fn generate_index_array(device: GraphicsDevice, max_indices: u32) GpuBuffer {
+    var transfer_buffer = TransferBuffer.init(u32, device, max_indices, .{ .upload = true });
+    defer device.release(transfer_buffer);
+
+    const index_buffer = GpuBuffer.init(u32, device, max_indices, .{ .index = true });
+
+    var mapped = transfer_buffer.map(u32, false);
+
+    var i: usize = 0;
+    var j: u32 = 0;
+    while (i < max_indices) {
+        mapped[i] = j;
+        mapped[i + 1] = j + 1;
+        mapped[i + 2] = j + 2;
+        mapped[i + 3] = j + 2;
+        mapped[i + 4] = j + 1;
+        mapped[i + 5] = j + 3;
+        i += 6;
+        j += 4;
+    }
+    transfer_buffer.unmap();
+
+    const cmd_buffer = device.acquireCommandBuffer();
+    const copy_pass = cmd_buffer.beginCopyPass();
+    copy_pass.uploadToBuffer(transfer_buffer, index_buffer, false);
+    copy_pass.end();
+    cmd_buffer.submit();
+
+    return index_buffer;
+}
+
+pub fn begin(self: *SpriteBatch, command: BeginCommand) void {
     if (self.rendered) {
         self.vertex_index = 0;
         self.onQueue = 0;
@@ -81,12 +112,12 @@ pub fn begin(self: *SpriteBatch, pipeline: GraphicsPipeline, texture: Texture, s
 
     self.batch_queues[self.onQueue] = .{ 
         .count = 0,
-        .pipeline = pipeline,
-        .matrix = if (matrix) |mat| mat else self.transform,
+        .pipeline = command.pipeline,
+        .matrix = if (command.matrix) |mat| mat else self.transform,
         .offset = self.vertex_index,
-        .binding = .{ .texture = texture, .sampler = sampler }
+        .binding = .{ .texture = command.texture, .sampler = command.sampler }
     };
-    self.mapped = self.transfer_buffer.mapUnknown(true);
+    self.mapped = self.transfer_buffer.map(CompData, true);
 }
 
 pub fn draw(self: *SpriteBatch, cmd: DrawCommand) void {
@@ -99,9 +130,8 @@ pub fn draw(self: *SpriteBatch, cmd: DrawCommand) void {
      else 
         cmd.color;
 
-    var data = @as([*]CompData, @alignCast(@ptrCast(self.mapped)));
     const index: usize = @intCast(self.vertex_index);
-    data[index] = .{
+    self.mapped[index] = .{
         .position = cmd.position,
         .scale = cmd.scale,
         .origin = cmd.origin,
@@ -189,39 +219,9 @@ fn resize_buffer(self: *SpriteBatch) void {
     self.transfer_buffer = TransferBuffer.init(CompData, self.device, max_textures, .{ .upload = true });
     self.index_buffer = generate_index_array(self.device, max_textures); 
 
-    self.mapped = self.transfer_buffer.mapUnknown(true); 
+    self.mapped = self.transfer_buffer.map(CompData, true); 
 }
 
-fn generate_index_array(device: GraphicsDevice, max_indices: u32) GpuBuffer {
-    var transfer_buffer = TransferBuffer.init(u32, device, max_indices, .{ .upload = true });
-    defer device.release(transfer_buffer);
-
-    const index_buffer = GpuBuffer.init(u32, device, max_indices, .{ .index = true });
-
-    var mapped = transfer_buffer.map(u32, false);
-
-    var i: usize = 0;
-    var j: u32 = 0;
-    while (i < max_indices) {
-        mapped[i] = j;
-        mapped[i + 1] = j + 1;
-        mapped[i + 2] = j + 2;
-        mapped[i + 3] = j + 2;
-        mapped[i + 4] = j + 1;
-        mapped[i + 5] = j + 3;
-        i += 6;
-        j += 4;
-    }
-    transfer_buffer.unmap();
-
-    const cmd_buffer = device.acquireCommandBuffer();
-    const copy_pass = cmd_buffer.beginCopyPass();
-    copy_pass.uploadToBuffer(transfer_buffer, index_buffer, false);
-    copy_pass.end();
-    cmd_buffer.submit();
-
-    return index_buffer;
-}
 
 pub fn deinit(self: SpriteBatch, device: GraphicsDevice) void {
     device.release(self.vertex_buffer);
@@ -230,6 +230,13 @@ pub fn deinit(self: SpriteBatch, device: GraphicsDevice) void {
     device.release(self.comp_buffer);
     self.allocator.free(self.batch_queues);
 }
+
+const BeginCommand = struct {
+    pipeline: GraphicsPipeline, 
+    texture: Texture, 
+    sampler: Sampler, 
+    matrix: ?float4x4 = null
+};
 
 const DrawCommand = struct {
     texture_quad: TextureQuad,

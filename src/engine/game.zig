@@ -57,11 +57,9 @@ pub fn GameContext(comptime State: type) type {
             };
         }
 
-        pub fn run(self: *GameContext(State), comptime loop: Events(State)) void {
+        pub fn run(self: *GameContext(State), comptime loop: Events(State)) !void {
             if (loop.load_content) |content| {
-                content(self) catch {
-                    @panic("Not yet");
-                };
+                try content(self);
             }
 
             if (loop.init) |ini| {

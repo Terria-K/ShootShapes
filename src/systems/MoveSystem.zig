@@ -12,6 +12,7 @@ filter: filter.QueryFilter(.{
     components.Transform,
     components.Move,
     components.Turns,
+    components.Timer
 }),
 
 
@@ -23,19 +24,17 @@ pub fn run(self: @This(), world: *World, res: *app.GlobalResource) void {
         const turns = world.getComponent(components.Turns, entity.*);
         var transform = world.getComponent(components.Transform, entity.*);
         const move = world.getReadOnlyComponent(components.Move, entity.*);
+        var timer = world.getComponent(components.Timer, entity.*);
 
         switch (turns.*) {
             .enemy => |*e| if (res.turn_state == .EnemyTurn) {
-                // Enemy could have a timer
-                if (world.tryGetComponent(components.Timer, entity.*)) |timer| {
-                    switch (timer.status) {
-                        .Reset => timer.start(),
-                        .Started => {},
-                        .Ended => {
-                            e.* -= 1;
-                            var relations = world.getAllAdmirerRelations(components.Tracked, entity.*);
+                switch (timer.status) {
+                    .Reset => timer.start(),
+                    .Started => {},
+                    .Ended => {
+                        e.* -= 1;
+                        if (world.getAllAdmirerRelations(components.Tracked, entity.*)) |relations| {
                             var relation_iter = relations.iterator();
-
                             var direction: float2 = undefined;
 
                             while (relation_iter.next()) |er| {
@@ -44,6 +43,7 @@ pub fn run(self: @This(), world: *World, res: *app.GlobalResource) void {
                                     direction = move_dir.normalize();
                                 }
                             }
+
                             const rounded = float2.new(@round(direction.x), @round(direction.y));
                             
                             if (rounded.x != 0) {
@@ -53,43 +53,48 @@ pub fn run(self: @This(), world: *World, res: *app.GlobalResource) void {
                             else if (rounded.y != 0) {
                                 transform.position.y += float.snapped(move.snap * snap_grid * rounded.y, 1);
                             }
+                        }
 
-                            timer.reset();
+                        timer.reset();
 
-                            if (e.* <= 0) {
-                                res.turn_state = .PlayerTurn;
-                                e.* = 4;
-                            }
+                        if (e.* <= 0) {
+                            res.turn_state = .PlayerTurn;
+                            e.* = 4;
                         }
                     }
                 }
             },
-            .player => |*p| if (res.turn_state == .PlayerTurn) {
-                // get an axis from a user input
-                const axisX = res.input.keyboard.pressedAxisF(.Left, .Right);
+            .player => |_| if (res.turn_state == .PlayerTurn) {
+                const turn = world.getComponent(components.TargetTurn, entity.*);
+                if (world.hasAdmirerComponentRelation(components.PlayerStateTransfers, entity.*) and turn.turns != 0) 
+                switch (timer.status) {
+                    .Reset => timer.start(),
+                    .Started => {},
+                    .Ended => {
+                        // get an axis from a user input
+                        turn.turns -= 1;
 
-                if (axisX != 0) {
-                    p.* -= 1;
-                    transform.position.x += float.snapped(move.snap * snap_grid * axisX, axisX);
-                }
+                        switch (turn.target_dir) {
+                            .horizontal => |*dir| transform.position.x += float.snapped(move.snap * snap_grid * dir.*, 1),
+                            .vertical => |*dir| transform.position.y += float.snapped(move.snap * snap_grid * dir.*, 1),
+                        }
 
-                const axisY = res.input.keyboard.pressedAxisF(.Up, .Down);
-                if (axisY != 0) {
-                    p.* -= 1;
-                    transform.position.y += float.snapped(move.snap * snap_grid * axisY, axisY);
-                }
+                        timer.reset();
 
-                if (p.* <= 0) {
-                    var relations = world.getAllTargetRelations(components.Tracked, entity.*);
-                    var relation_iter = relations.iterator();
-                    while (relation_iter.next()) |e|{
-                        if (world.getComponentRelation(components.Tracked, entity.*, e.*)) |tracker|{
-                            tracker.current_pos = transform.position;
+                        if (turn.turns <= 0) {
+                            if (world.getAllTargetRelations(components.Tracked, entity.*)) |relations| {
+                                var relation_iter = relations.iterator();
+                                while (relation_iter.next()) |e|{
+                                    if (world.getComponentRelation(components.Tracked, entity.*, e.*)) |tracker|{
+                                        tracker.current_pos = transform.position;
+                                    }
+                                }
+                            }
+
+                            res.turn_state = .EnemyTurn;
                         }
                     }
-                    res.turn_state = .EnemyTurn;
-                    p.* = 5;
-                }
+                };
             }
         }
     }

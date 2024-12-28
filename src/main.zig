@@ -125,6 +125,7 @@ pub const AppState = struct {
         ctx.state.res.delta = delta;
         ctx.state.res.input = &ctx.inputs;
         ctx.state.world.runSystems(&ctx.state.update_container, &ctx.state.res);
+        ctx.state.world.update();
     }
 
     fn render(ctx: *GameContext) void {
@@ -150,7 +151,11 @@ pub const AppState = struct {
 
 
             {
-                ctx.state.res.batch.begin(ctx.state.res.default, ctx.state.target, ctx.state.res.sampler, null);
+                ctx.state.res.batch.begin(.{
+                    .pipeline = ctx.state.res.default,
+                    .texture = ctx.state.target,
+                    .sampler = ctx.state.res.sampler
+                });
                 ctx.state.res.batch.draw(.{
                     .position = float2.new(0, 0),
                     .texture_quad = graphics.TextureQuad.initFromTexture(ctx.state.target, frect.init(0, 0, 1024, 640))
@@ -193,7 +198,7 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     var context = try GameContext.init(allocator, WindowSettings.init("ShootShapes", 1024, 640, .{}));
 
-    context.run(.{
+    try context.run(.{
         .init = AppState.init,
         .update = AppState.update,
         .render = AppState.render,

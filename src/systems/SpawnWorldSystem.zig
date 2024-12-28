@@ -11,8 +11,9 @@ const atlas = @import("atlas");
 const entity_cube_size = float2.new(16, 16);
 
 pub fn run(_: @This(), world: *World, _: *app.GlobalResource) void {
-    spawnCursorEntity(world);
-    const player = spawnPlayer(world);
+    // const cursor = spawnCursorEntity(world);
+    const player = spawnPlayer(world, float2.new(0, 0));
+    _ = spawnPlayer(world, float2.new(80, 128));
     const enemy = spawnEnemy(world);
     spawnArena(world);
     spawnCard(world, 0);
@@ -20,6 +21,7 @@ pub fn run(_: @This(), world: *World, _: *app.GlobalResource) void {
     spawnCard(world, 2);
 
     world.setComponentRelation(components.Tracked, .{}, player, enemy);
+    // world.setComponentRelation(components.PlayerStateTrasfers, .{}, player, cursor);
 }
 
 fn spawnArena(world: *World) void {
@@ -49,7 +51,7 @@ fn spawnCard(world: *World, comptime i: u32) void {
     }, card);
 }
 
-fn spawnCursorEntity(world: *World) void {
+pub fn spawnCursorEntity(world: *World) u32 {
     const mouse_entity = world.createEntity();
     world.setComponent(components.Cursor, .{}, mouse_entity);
     world.setComponent(components.Transform, .{ 
@@ -62,17 +64,21 @@ fn spawnCursorEntity(world: *World) void {
         .color = .{ .r = 255, .g = 255, .b = 255, .a = 128 }
     }, mouse_entity);
     world.setComponent(components.Pulsing, .{}, mouse_entity);
+    return mouse_entity;
 }
 
-fn spawnPlayer(world: *World) u32 {
+fn spawnPlayer(world: *World, pos: float2) u32 {
     const player_entity = world.createEntity();
     world.setComponent(components.Move, .{ .snap = 1 }, player_entity);
     world.setComponent(components.Turns, .{ .player = 5 }, player_entity);
     world.setComponent(components.Sprite,.{ 
         .texture = Atlas.get(atlas.Texture, "pixel")
     }, player_entity);
+    world.setComponent(components.Player, .{}, player_entity);
+    world.setComponent(components.Timer, components.Timer.init(0.2), player_entity);
+    world.setComponent(components.TargetTurn, .{}, player_entity);
     world.setComponent(components.Transform, .{ 
-        .position = float2.new(0, 0),
+        .position = pos,
         .scale = entity_cube_size
     }, 
     player_entity);
@@ -84,7 +90,7 @@ fn spawnEnemy(world: *World) u32 {
     world.setComponent(components.Move, .{ .snap = 1 }, enemy);
     world.setComponent(components.Turns, .{ .enemy = 4 }, enemy);
     world.setComponent(components.Sprite, .{ .texture = Atlas.get(atlas.Texture, "pixel") }, enemy);
-    world.setComponent(components.Timer, components.Timer.init(0.5), enemy);
+    world.setComponent(components.Timer, components.Timer.init(0.2), enemy);
     world.setComponent(components.Transform, .{ 
         .position = float2.new(128, 48),
         .scale = entity_cube_size
